@@ -1177,6 +1177,12 @@
 			"owner": "Triply-Dev",
 			"alias": "rq"
 		},
+		"specify": {
+			"title": "Specify",
+			"alias": "spec",
+			"require": "clike",
+			"owner": "Certora"
+		},
 		"splunk-spl": {
 			"title": "Splunk SPL",
 			"owner": "RunDevelopment"
