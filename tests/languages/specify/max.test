@@ -1,0 +1,239 @@
+definition MAX_UINT() returns uint = 2^256-1;
+definition MAX_UINT256() returns uint = 2^256-1;
+definition MAX_UINT160() returns uint = 2^160-1;
+definition MAX_UINT128() returns uint = 2^128-1;
+definition MAX_UINT96() returns uint = 2^96-1;
+definition MAX_UINT64() returns uint = 2^64-1;
+definition MAX_UINT32() returns uint = 2^32-1;
+definition MAX_UINT16() returns uint = 2^16-1;
+definition MAX_UINT8() returns uint = 2^8-1;
+
+
+rule checkAll {
+    assert max_uint == MAX_UINT();
+    assert max_uint256 == MAX_UINT256();
+    assert max_uint160 == MAX_UINT160();
+    assert max_address == MAX_UINT160();
+    assert max_uint128 == MAX_UINT128();
+    assert max_uint96 == MAX_UINT96();
+    assert max_uint64 == MAX_UINT64();
+    assert max_uint32 == MAX_UINT32();
+    assert max_uint16 == MAX_UINT16();
+    assert max_uint8 == MAX_UINT8();
+}
+
+----------------------------------------------------
+
+[
+	["keyword", "definition"],
+	["class-name", "MAX_UINT"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "uint"],
+	["operator", "="],
+	["number", "2"],
+	["operator", "^"],
+	["number", "256"],
+	["operator", "-"],
+	["number", "1"],
+	["punctuation", ";"],
+
+	["keyword", "definition"],
+	["class-name", "MAX_UINT256"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "uint"],
+	["operator", "="],
+	["number", "2"],
+	["operator", "^"],
+	["number", "256"],
+	["operator", "-"],
+	["number", "1"],
+	["punctuation", ";"],
+
+	["keyword", "definition"],
+	["class-name", "MAX_UINT160"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "uint"],
+	["operator", "="],
+	["number", "2"],
+	["operator", "^"],
+	["number", "160"],
+	["operator", "-"],
+	["number", "1"],
+	["punctuation", ";"],
+
+	["keyword", "definition"],
+	["class-name", "MAX_UINT128"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "uint"],
+	["operator", "="],
+	["number", "2"],
+	["operator", "^"],
+	["number", "128"],
+	["operator", "-"],
+	["number", "1"],
+	["punctuation", ";"],
+
+	["keyword", "definition"],
+	["class-name", "MAX_UINT96"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "uint"],
+	["operator", "="],
+	["number", "2"],
+	["operator", "^"],
+	["number", "96"],
+	["operator", "-"],
+	["number", "1"],
+	["punctuation", ";"],
+
+	["keyword", "definition"],
+	["class-name", "MAX_UINT64"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "uint"],
+	["operator", "="],
+	["number", "2"],
+	["operator", "^"],
+	["number", "64"],
+	["operator", "-"],
+	["number", "1"],
+	["punctuation", ";"],
+
+	["keyword", "definition"],
+	["class-name", "MAX_UINT32"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "uint"],
+	["operator", "="],
+	["number", "2"],
+	["operator", "^"],
+	["number", "32"],
+	["operator", "-"],
+	["number", "1"],
+	["punctuation", ";"],
+
+	["keyword", "definition"],
+	["class-name", "MAX_UINT16"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "uint"],
+	["operator", "="],
+	["number", "2"],
+	["operator", "^"],
+	["number", "16"],
+	["operator", "-"],
+	["number", "1"],
+	["punctuation", ";"],
+
+	["keyword", "definition"],
+	["class-name", "MAX_UINT8"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "uint"],
+	["operator", "="],
+	["number", "2"],
+	["operator", "^"],
+	["number", "8"],
+	["operator", "-"],
+	["number", "1"],
+	["punctuation", ";"],
+
+	["keyword", "rule"],
+	["class-name", "checkAll"],
+	["punctuation", "{"],
+
+	["keyword", "assert"],
+	["keyword", "max_uint"],
+	["operator", "=="],
+	["function", "MAX_UINT"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "assert"],
+	["keyword", "max_uint256"],
+	["operator", "=="],
+	["function", "MAX_UINT256"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "assert"],
+	["keyword", "max_uint160"],
+	["operator", "=="],
+	["function", "MAX_UINT160"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "assert"],
+	["keyword", "max_address"],
+	["operator", "=="],
+	["function", "MAX_UINT160"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "assert"],
+	["keyword", "max_uint128"],
+	["operator", "=="],
+	["function", "MAX_UINT128"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "assert"],
+	["keyword", "max_uint96"],
+	["operator", "=="],
+	["function", "MAX_UINT96"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "assert"],
+	["keyword", "max_uint64"],
+	["operator", "=="],
+	["function", "MAX_UINT64"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "assert"],
+	["keyword", "max_uint32"],
+	["operator", "=="],
+	["function", "MAX_UINT32"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "assert"],
+	["keyword", "max_uint16"],
+	["operator", "=="],
+	["function", "MAX_UINT16"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "assert"],
+	["keyword", "max_uint8"],
+	["operator", "=="],
+	["function", "MAX_UINT8"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["punctuation", "}"]
+]

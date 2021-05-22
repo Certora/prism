@@ -1,0 +1,2219 @@
+methods {
+    getThing(uint256) returns (uint256) envfree
+    setThing(uint256, uint256) envfree
+    addToSet(uint256, uint256) envfree
+    setYoloSwagFoo(uint256) envfree
+    setYoloSwagBar(uint256) envfree
+    setYoloSwagMappedFoo(uint256, uint256) envfree
+    setYoloSwagMappedBar(uint256, uint256) envfree
+    setNeedfulNestedYoloSwagBar(uint256) envfree
+    setMappedNeedfulNestedYoloSwagBar(uint256, uint256) envfree
+    addToArray(uint256) envfree
+    setArrayThenDelete(uint256,uint256) envfree
+    setMappedYeteHot(uint256,uint128) envfree
+    setMappedYeteDiggity(uint256,uint64) envfree
+    setMappedYeteDawg(uint256,uint64) envfree
+    // used below as hook pattern slot
+    balanceOf(address) returns uint envfree
+    setBalance(address,uint256) envfree
+}
+
+sort MyKey;
+
+ghost sums(MyKey) returns uint;
+ghost toMyKey(uint) returns MyKey;
+ghost inSet(uint,uint) returns bool;
+ghost fooSum() returns uint;
+ghost barSum() returns uint;
+ghost fooSums(MyKey) returns uint;
+ghost barSums(MyKey) returns uint;
+ghost needfulBarSum() returns uint;
+ghost needfulBarSums(MyKey) returns uint;
+ghost arraySum() returns uint;
+ghost shadowArray(uint) returns uint;
+ghost lastYeteHot() returns uint;
+ghost lastYeteDiggity() returns uint;
+ghost lastYeteDawg() returns uint;
+ghost lastYete() returns uint;
+
+definition updateSums(uint key, uint i) returns bool = forall MyKey otherKey. (toMyKey(key) != otherKey => sums@new(otherKey) == sums@old(otherKey)) && sums@new(toMyKey(key)) == sums@old(toMyKey(key)) + i;
+definition updateFooSums(uint key, uint i) returns bool = forall MyKey otherKey. (toMyKey(key) != otherKey => fooSums@new(otherKey) == fooSums@old(otherKey)) && fooSums@new(toMyKey(key)) == fooSums@old(toMyKey(key)) + i;
+definition updateBarSums(uint key, uint i) returns bool = forall MyKey otherKey. (toMyKey(key) != otherKey => barSums@new(otherKey) == barSums@old(otherKey)) && barSums@new(toMyKey(key)) == barSums@old(toMyKey(key)) + i;
+definition updateNeedfulBarSums(uint key, uint i) returns bool = forall MyKey otherKey. (toMyKey(key) != otherKey => needfulBarSums@new(otherKey) == needfulBarSums@old(otherKey)) && needfulBarSums@new(toMyKey(key)) == needfulBarSums@old(toMyKey(key)) + i;
+definition yete_hot(uint256 yete) returns uint256     = (0x00000000000000000000000000000000ffffffffffffffffffffffffffffffff & yete);
+definition yete_diggity(uint256 yete) returns uint256 = (0x0000000000000000ffffffffffffffff00000000000000000000000000000000 & yete) >>> 128;
+definition yete_dawg(uint256 yete) returns uint256    =  (0xffffffffffffffff000000000000000000000000000000000000000000000000 & yete) >>> 192;
+
+// uses "balanceOf" which is also a function identifier
+hook Sstore balanceOf[KEY address a] uint256 b STORAGE {
+    assert true;
+}
+
+hook Sstore my_mapping[KEY uint key] uint i STORAGE {
+    havoc sums assuming updateSums(key, i);
+}
+
+hook Sload uint i my_mapping[KEY uint key] STORAGE {
+    havoc sums assuming updateSums(key, i);
+}
+
+hook Sstore my_map_of_sets[KEY uint set][KEY uint member] bool membership STORAGE {
+    havoc inSet assuming forall uint otherSet. forall uint otherMember. ((otherSet != set || otherMember != member) => inSet@new(otherSet,otherMember) == inSet@old(otherSet, otherMember)) && inSet@new(set, member) == membership;
+}
+
+hook Sstore my_yolo_swag.(offset 0) uint i STORAGE {
+    havoc fooSum assuming fooSum@new() == fooSum@old() + i;
+}
+
+hook Sstore my_yolo_swag.(offset 32) uint i STORAGE {
+    havoc barSum assuming barSum@new() == barSum@old() + i;
+}
+
+hook Sstore my_yolo_swag_mapping[KEY uint key].(offset 0) uint i STORAGE {
+    havoc fooSums assuming updateFooSums(key, i);
+}
+
+hook Sstore my_yolo_swag_mapping[KEY uint key].(offset 32) uint i STORAGE {
+    havoc barSums assuming updateBarSums(key, i);
+}
+
+hook Sstore my_needful.(offset 32).(offset 32) uint i STORAGE {
+    havoc needfulBarSum assuming needfulBarSum@new() == needfulBarSum@old() + i;
+}
+
+hook Sstore my_needful_mapping[KEY uint key].(offset 32).(offset 32) uint i STORAGE {
+    havoc needfulBarSums assuming updateNeedfulBarSums(key, i);
+}
+
+hook Sstore my_uint_dynamic_array[INDEX uint index] uint n (uint old_n) STORAGE {
+    havoc shadowArray assuming shadowArray@new(index) == n && (forall uint i. i != index => shadowArray@new(i) == shadowArray@old(i));
+    require old_n < arraySum();
+    havoc arraySum assuming arraySum@new() == arraySum@old() + (n - old_n);
+}
+
+hook Sstore my_yete_mapping[KEY uint key].(offset 0) uint yete STORAGE {
+    havoc lastYeteDawg assuming lastYeteDawg@new() == yete_dawg(yete);
+    havoc lastYete assuming lastYete@new() == yete;
+    havoc lastYeteHot assuming lastYeteHot@new() == yete_hot(yete);
+    havoc lastYeteDiggity assuming lastYeteDiggity@new() == yete_diggity(yete);
+}
+
+rule writeThingSums(uint key, uint n) {
+    require n <= 25000;
+    require forall MyKey k. sums(k) == 0;
+    setThing@norevert(key, n);
+    setThing@norevert(key, n);
+    setThing@norevert(key, n);
+    assert sums(toMyKey(key)) == 3 * n;
+}
+
+rule addToArraySum(uint n) {
+    require n <= 25000;
+    require arraySum() == 0;
+    addToArray(n);
+    addToArray(n);
+    addToArray(n);
+    assert arraySum() == 3 * n;
+}
+
+rule readThingSums(uint key) {
+    uint m;
+    uint n;
+    uint o;
+    require forall MyKey k. sums(k) == 0;
+    m = getThing@norevert(key);
+    n = getThing@norevert(key);
+    o = getThing@norevert(key);
+    require m <= 25000;
+    require n <= 25000;
+    require o <= 25000;
+    assert sums(toMyKey(key)) == m + n + o;
+}
+
+rule setMembership {
+    uint X;
+    uint Y;
+    uint a;
+    uint b;
+    require X != Y;
+    require a != b;
+    require forall uint set. forall uint member. !inSet(set,member);
+    addToSet@norevert(X, a);
+    assert inSet(X, a);
+    assert !inSet(X,b);
+    assert !inSet(Y,a);
+    assert !inSet(Y,b);
+}
+
+rule writeYoloSwagFooSum(uint n) {
+    require n <= 25000;
+    require fooSum() == 0;
+    setYoloSwagFoo@norevert(n);
+    setYoloSwagFoo@norevert(n);
+    setYoloSwagFoo@norevert(n);
+    assert fooSum() == 3 * n;
+}
+
+rule writeYoloSwagBarSum(uint n) {
+    require n <= 25000;
+    require barSum() == 0;
+    setYoloSwagBar@norevert(n);
+    setYoloSwagBar@norevert(n);
+    setYoloSwagBar@norevert(n);
+    assert barSum() == 3 * n;
+}
+
+rule writeYoloSwagFooSums(uint key, uint n) {
+    require n <= 25000;
+    require forall MyKey k. fooSums(k) == 0;
+    setYoloSwagMappedFoo@norevert(key, n);
+    setYoloSwagMappedFoo@norevert(key, n);
+    setYoloSwagMappedFoo@norevert(key, n);
+    assert fooSums(toMyKey(key)) == 3 * n;
+}
+
+rule writeYoloSwagBarSums(uint key, uint n) {
+    require n <= 25000;
+    require forall MyKey k. barSums(k) == 0;
+    setYoloSwagMappedBar@norevert(key, n);
+    setYoloSwagMappedBar@norevert(key, n);
+    setYoloSwagMappedBar@norevert(key, n);
+    assert barSums(toMyKey(key)) == 3 * n;
+}
+
+rule writeNeedfulNestedYoloSwagBarSum(uint n) {
+    require n <= 25000;
+    require needfulBarSum() == 0;
+    setNeedfulNestedYoloSwagBar@norevert(n);
+    setNeedfulNestedYoloSwagBar@norevert(n);
+    setNeedfulNestedYoloSwagBar@norevert(n);
+    assert needfulBarSum() == 3 * n;
+}
+
+rule writeMappedNeedfulNestedYoloSwagBarSums(uint key, uint n) {
+    require n <= 25000;
+    require forall MyKey k. needfulBarSums(k) == 0;
+    setMappedNeedfulNestedYoloSwagBar@norevert(key, n);
+    setMappedNeedfulNestedYoloSwagBar@norevert(key, n);
+    setMappedNeedfulNestedYoloSwagBar@norevert(key, n);
+    assert needfulBarSums(toMyKey(key)) == 3 * n;
+}
+
+rule writeDynamicArrayThenDelete(uint n, uint length) {
+    require n <= 25000;
+    // 3 since BMC is set at 3
+    require length <= 3;
+    require length > 0;
+    uint last = length - 1;
+    setArrayThenDelete(n, length);
+    assert shadowArray(0) == 0;
+    assert shadowArray(last) == 0;
+}
+
+rule writeDynamicArrayThenDelete2(uint n, uint length) {
+    require n <= 25000;
+    require length <= 25000;
+    require arraySum() == 0;
+    setArrayThenDelete(n, length);
+    assert arraySum() == 0;
+}
+
+rule writeMappedYeteHot(uint256 n, uint64 v) {
+    setMappedYeteHot(n, v);
+    assert v == lastYeteHot(); 
+}
+
+rule writeMappedYeteDiggity(uint256 n, uint64 v) {
+    setMappedYeteDiggity(n, v);
+    assert v == lastYeteDiggity();
+}
+
+rule writeMappedYeteDawg(uint256 n, uint64 v) {
+    setMappedYeteDawg(n, v);
+    assert v == lastYeteDawg();
+}
+
+rule setBalance(address a, uint256 b) {
+    // trigger balanceOf hook in case some error gets triggered only
+    // if hook gets used
+    setBalance(a, b);
+    assert true;
+}
+
+----------------------------------------------------
+
+[
+	["keyword", "methods"],
+	["punctuation", "{"],
+
+	["function", "getThing"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	["punctuation", ")"],
+	["keyword", "envfree"],
+
+	["function", "setThing"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	["punctuation", ","],
+	["builtin", "uint256"],
+	["punctuation", ")"],
+	["keyword", "envfree"],
+
+	["function", "addToSet"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	["punctuation", ","],
+	["builtin", "uint256"],
+	["punctuation", ")"],
+	["keyword", "envfree"],
+
+	["function", "setYoloSwagFoo"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	["punctuation", ")"],
+	["keyword", "envfree"],
+
+	["function", "setYoloSwagBar"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	["punctuation", ")"],
+	["keyword", "envfree"],
+
+	["function", "setYoloSwagMappedFoo"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	["punctuation", ","],
+	["builtin", "uint256"],
+	["punctuation", ")"],
+	["keyword", "envfree"],
+
+	["function", "setYoloSwagMappedBar"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	["punctuation", ","],
+	["builtin", "uint256"],
+	["punctuation", ")"],
+	["keyword", "envfree"],
+
+	["function", "setNeedfulNestedYoloSwagBar"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	["punctuation", ")"],
+	["keyword", "envfree"],
+
+	["function", "setMappedNeedfulNestedYoloSwagBar"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	["punctuation", ","],
+	["builtin", "uint256"],
+	["punctuation", ")"],
+	["keyword", "envfree"],
+
+	["function", "addToArray"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	["punctuation", ")"],
+	["keyword", "envfree"],
+
+	["function", "setArrayThenDelete"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	["punctuation", ","],
+	["builtin", "uint256"],
+	["punctuation", ")"],
+	["keyword", "envfree"],
+
+	["function", "setMappedYeteHot"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	["punctuation", ","],
+	["builtin", "uint128"],
+	["punctuation", ")"],
+	["keyword", "envfree"],
+
+	["function", "setMappedYeteDiggity"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	["punctuation", ","],
+	["builtin", "uint64"],
+	["punctuation", ")"],
+	["keyword", "envfree"],
+
+	["function", "setMappedYeteDawg"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	["punctuation", ","],
+	["builtin", "uint64"],
+	["punctuation", ")"],
+	["keyword", "envfree"],
+
+	["comment", "// used below as hook pattern slot"],
+
+	["function", "balanceOf"],
+	["punctuation", "("],
+	["builtin", "address"],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "uint"],
+	["keyword", "envfree"],
+
+	["function", "setBalance"],
+	["punctuation", "("],
+	["builtin", "address"],
+	["punctuation", ","],
+	["builtin", "uint256"],
+	["punctuation", ")"],
+	["keyword", "envfree"],
+
+	["punctuation", "}"],
+
+	["keyword", "sort"], ["class-name", "MyKey"], ["punctuation", ";"],
+
+	["keyword", "ghost"],
+	["class-name", "sums"],
+	["punctuation", "("],
+	"MyKey",
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "uint"],
+	["punctuation", ";"],
+
+	["keyword", "ghost"],
+	["class-name", "toMyKey"],
+	["punctuation", "("],
+	["builtin", "uint"],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	" MyKey",
+	["punctuation", ";"],
+
+	["keyword", "ghost"],
+	["class-name", "inSet"],
+	["punctuation", "("],
+	["builtin", "uint"],
+	["punctuation", ","],
+	["builtin", "uint"],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "bool"],
+	["punctuation", ";"],
+
+	["keyword", "ghost"],
+	["class-name", "fooSum"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "uint"],
+	["punctuation", ";"],
+
+	["keyword", "ghost"],
+	["class-name", "barSum"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "uint"],
+	["punctuation", ";"],
+
+	["keyword", "ghost"],
+	["class-name", "fooSums"],
+	["punctuation", "("],
+	"MyKey",
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "uint"],
+	["punctuation", ";"],
+
+	["keyword", "ghost"],
+	["class-name", "barSums"],
+	["punctuation", "("],
+	"MyKey",
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "uint"],
+	["punctuation", ";"],
+
+	["keyword", "ghost"],
+	["class-name", "needfulBarSum"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "uint"],
+	["punctuation", ";"],
+
+	["keyword", "ghost"],
+	["class-name", "needfulBarSums"],
+	["punctuation", "("],
+	"MyKey",
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "uint"],
+	["punctuation", ";"],
+
+	["keyword", "ghost"],
+	["class-name", "arraySum"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "uint"],
+	["punctuation", ";"],
+
+	["keyword", "ghost"],
+	["class-name", "shadowArray"],
+	["punctuation", "("],
+	["builtin", "uint"],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "uint"],
+	["punctuation", ";"],
+
+	["keyword", "ghost"],
+	["class-name", "lastYeteHot"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "uint"],
+	["punctuation", ";"],
+
+	["keyword", "ghost"],
+	["class-name", "lastYeteDiggity"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "uint"],
+	["punctuation", ";"],
+
+	["keyword", "ghost"],
+	["class-name", "lastYeteDawg"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "uint"],
+	["punctuation", ";"],
+
+	["keyword", "ghost"],
+	["class-name", "lastYete"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "uint"],
+	["punctuation", ";"],
+
+	["keyword", "definition"],
+	["class-name", "updateSums"],
+	["punctuation", "("],
+	["builtin", "uint"],
+	" key",
+	["punctuation", ","],
+	["builtin", "uint"],
+	" i",
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "bool"],
+	["operator", "="],
+	["keyword", "forall"],
+	" MyKey otherKey",
+	["punctuation", "."],
+	["punctuation", "("],
+	["function", "toMyKey"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ")"],
+	["operator", "!="],
+	" otherKey ",
+	["operator", "="],
+	["operator", ">"],
+	" sums",
+	["keyword", "@new"],
+	["punctuation", "("],
+	"otherKey",
+	["punctuation", ")"],
+	["operator", "=="],
+	" sums",
+	["keyword", "@old"],
+	["punctuation", "("],
+	"otherKey",
+	["punctuation", ")"],
+	["punctuation", ")"],
+	["operator", "&&"],
+	" sums",
+	["keyword", "@new"],
+	["punctuation", "("],
+	["function", "toMyKey"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ")"],
+	["punctuation", ")"],
+	["operator", "=="],
+	" sums",
+	["keyword", "@old"],
+	["punctuation", "("],
+	["function", "toMyKey"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ")"],
+	["punctuation", ")"],
+	["operator", "+"],
+	" i",
+	["punctuation", ";"],
+
+	["keyword", "definition"],
+	["class-name", "updateFooSums"],
+	["punctuation", "("],
+	["builtin", "uint"],
+	" key",
+	["punctuation", ","],
+	["builtin", "uint"],
+	" i",
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "bool"],
+	["operator", "="],
+	["keyword", "forall"],
+	" MyKey otherKey",
+	["punctuation", "."],
+	["punctuation", "("],
+	["function", "toMyKey"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ")"],
+	["operator", "!="],
+	" otherKey ",
+	["operator", "="],
+	["operator", ">"],
+	" fooSums",
+	["keyword", "@new"],
+	["punctuation", "("],
+	"otherKey",
+	["punctuation", ")"],
+	["operator", "=="],
+	" fooSums",
+	["keyword", "@old"],
+	["punctuation", "("],
+	"otherKey",
+	["punctuation", ")"],
+	["punctuation", ")"],
+	["operator", "&&"],
+	" fooSums",
+	["keyword", "@new"],
+	["punctuation", "("],
+	["function", "toMyKey"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ")"],
+	["punctuation", ")"],
+	["operator", "=="],
+	" fooSums",
+	["keyword", "@old"],
+	["punctuation", "("],
+	["function", "toMyKey"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ")"],
+	["punctuation", ")"],
+	["operator", "+"],
+	" i",
+	["punctuation", ";"],
+
+	["keyword", "definition"],
+	["class-name", "updateBarSums"],
+	["punctuation", "("],
+	["builtin", "uint"],
+	" key",
+	["punctuation", ","],
+	["builtin", "uint"],
+	" i",
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "bool"],
+	["operator", "="],
+	["keyword", "forall"],
+	" MyKey otherKey",
+	["punctuation", "."],
+	["punctuation", "("],
+	["function", "toMyKey"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ")"],
+	["operator", "!="],
+	" otherKey ",
+	["operator", "="],
+	["operator", ">"],
+	" barSums",
+	["keyword", "@new"],
+	["punctuation", "("],
+	"otherKey",
+	["punctuation", ")"],
+	["operator", "=="],
+	" barSums",
+	["keyword", "@old"],
+	["punctuation", "("],
+	"otherKey",
+	["punctuation", ")"],
+	["punctuation", ")"],
+	["operator", "&&"],
+	" barSums",
+	["keyword", "@new"],
+	["punctuation", "("],
+	["function", "toMyKey"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ")"],
+	["punctuation", ")"],
+	["operator", "=="],
+	" barSums",
+	["keyword", "@old"],
+	["punctuation", "("],
+	["function", "toMyKey"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ")"],
+	["punctuation", ")"],
+	["operator", "+"],
+	" i",
+	["punctuation", ";"],
+
+	["keyword", "definition"],
+	["class-name", "updateNeedfulBarSums"],
+	["punctuation", "("],
+	["builtin", "uint"],
+	" key",
+	["punctuation", ","],
+	["builtin", "uint"],
+	" i",
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "bool"],
+	["operator", "="],
+	["keyword", "forall"],
+	" MyKey otherKey",
+	["punctuation", "."],
+	["punctuation", "("],
+	["function", "toMyKey"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ")"],
+	["operator", "!="],
+	" otherKey ",
+	["operator", "="],
+	["operator", ">"],
+	" needfulBarSums",
+	["keyword", "@new"],
+	["punctuation", "("],
+	"otherKey",
+	["punctuation", ")"],
+	["operator", "=="],
+	" needfulBarSums",
+	["keyword", "@old"],
+	["punctuation", "("],
+	"otherKey",
+	["punctuation", ")"],
+	["punctuation", ")"],
+	["operator", "&&"],
+	" needfulBarSums",
+	["keyword", "@new"],
+	["punctuation", "("],
+	["function", "toMyKey"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ")"],
+	["punctuation", ")"],
+	["operator", "=="],
+	" needfulBarSums",
+	["keyword", "@old"],
+	["punctuation", "("],
+	["function", "toMyKey"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ")"],
+	["punctuation", ")"],
+	["operator", "+"],
+	" i",
+	["punctuation", ";"],
+
+	["keyword", "definition"],
+	["class-name", "yete_hot"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	" yete",
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "uint256"],
+	["operator", "="],
+	["punctuation", "("],
+	["number", "0x00000000000000000000000000000000ffffffffffffffffffffffffffffffff"],
+	["operator", "&"],
+	" yete",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "definition"],
+	["class-name", "yete_diggity"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	" yete",
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "uint256"],
+	["operator", "="],
+	["punctuation", "("],
+	["number", "0x0000000000000000ffffffffffffffff00000000000000000000000000000000"],
+	["operator", "&"],
+	" yete",
+	["punctuation", ")"],
+	["operator", ">"],
+	["operator", ">"],
+	["operator", ">"],
+	["number", "128"],
+	["punctuation", ";"],
+
+	["keyword", "definition"],
+	["class-name", "yete_dawg"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	" yete",
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "uint256"],
+	["operator", "="],
+	["punctuation", "("],
+	["number", "0xffffffffffffffff000000000000000000000000000000000000000000000000"],
+	["operator", "&"],
+	" yete",
+	["punctuation", ")"],
+	["operator", ">"],
+	["operator", ">"],
+	["operator", ">"],
+	["number", "192"],
+	["punctuation", ";"],
+
+	["comment", "// uses \"balanceOf\" which is also a function identifier"],
+
+	["keyword", "hook"],
+	["class-name", "Sstore"],
+	" balanceOf",
+	["punctuation", "["],
+	["keyword", "KEY"],
+	["builtin", "address"],
+	" a",
+	["punctuation", "]"],
+	["builtin", "uint256"],
+	" b ",
+	["keyword", "STORAGE"],
+	["punctuation", "{"],
+
+	["keyword", "assert"],
+	["boolean", "true"],
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["keyword", "hook"],
+	["class-name", "Sstore"],
+	" my_mapping",
+	["punctuation", "["],
+	["keyword", "KEY"],
+	["builtin", "uint"],
+	" key",
+	["punctuation", "]"],
+	["builtin", "uint"],
+	" i ",
+	["keyword", "STORAGE"],
+	["punctuation", "{"],
+
+	["keyword", "havoc"],
+	" sums ",
+	["keyword", "assuming"],
+	["function", "updateSums"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ","],
+	" i",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["keyword", "hook"],
+	["class-name", "Sload"],
+	["builtin", "uint"],
+	" i my_mapping",
+	["punctuation", "["],
+	["keyword", "KEY"],
+	["builtin", "uint"],
+	" key",
+	["punctuation", "]"],
+	["keyword", "STORAGE"],
+	["punctuation", "{"],
+
+	["keyword", "havoc"],
+	" sums ",
+	["keyword", "assuming"],
+	["function", "updateSums"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ","],
+	" i",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["keyword", "hook"],
+	["class-name", "Sstore"],
+	" my_map_of_sets",
+	["punctuation", "["],
+	["keyword", "KEY"],
+	["builtin", "uint"],
+	" set",
+	["punctuation", "]"],
+	["punctuation", "["],
+	["keyword", "KEY"],
+	["builtin", "uint"],
+	" member",
+	["punctuation", "]"],
+	["builtin", "bool"],
+	" membership ",
+	["keyword", "STORAGE"],
+	["punctuation", "{"],
+
+	["keyword", "havoc"],
+	" inSet ",
+	["keyword", "assuming"],
+	["keyword", "forall"],
+	["builtin", "uint"],
+	" otherSet",
+	["punctuation", "."],
+	["keyword", "forall"],
+	["builtin", "uint"],
+	" otherMember",
+	["punctuation", "."],
+	["punctuation", "("],
+	["punctuation", "("],
+	"otherSet ",
+	["operator", "!="],
+	" set ",
+	["operator", "||"],
+	" otherMember ",
+	["operator", "!="],
+	" member",
+	["punctuation", ")"],
+	["operator", "="],
+	["operator", ">"],
+	" inSet",
+	["keyword", "@new"],
+	["punctuation", "("],
+	"otherSet",
+	["punctuation", ","],
+	"otherMember",
+	["punctuation", ")"],
+	["operator", "=="],
+	" inSet",
+	["keyword", "@old"],
+	["punctuation", "("],
+	"otherSet",
+	["punctuation", ","],
+	" otherMember",
+	["punctuation", ")"],
+	["punctuation", ")"],
+	["operator", "&&"],
+	" inSet",
+	["keyword", "@new"],
+	["punctuation", "("],
+	"set",
+	["punctuation", ","],
+	" member",
+	["punctuation", ")"],
+	["operator", "=="],
+	" membership",
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["keyword", "hook"],
+	["class-name", "Sstore"],
+	" my_yolo_swag",
+	["punctuation", "."],
+	["punctuation", "("],
+	["keyword", "offset"],
+	["number", "0"],
+	["punctuation", ")"],
+	["builtin", "uint"],
+	" i ",
+	["keyword", "STORAGE"],
+	["punctuation", "{"],
+
+	["keyword", "havoc"],
+	" fooSum ",
+	["keyword", "assuming"],
+	" fooSum",
+	["keyword", "@new"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["operator", "=="],
+	" fooSum",
+	["keyword", "@old"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["operator", "+"],
+	" i",
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["keyword", "hook"],
+	["class-name", "Sstore"],
+	" my_yolo_swag",
+	["punctuation", "."],
+	["punctuation", "("],
+	["keyword", "offset"],
+	["number", "32"],
+	["punctuation", ")"],
+	["builtin", "uint"],
+	" i ",
+	["keyword", "STORAGE"],
+	["punctuation", "{"],
+
+	["keyword", "havoc"],
+	" barSum ",
+	["keyword", "assuming"],
+	" barSum",
+	["keyword", "@new"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["operator", "=="],
+	" barSum",
+	["keyword", "@old"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["operator", "+"],
+	" i",
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["keyword", "hook"],
+	["class-name", "Sstore"],
+	" my_yolo_swag_mapping",
+	["punctuation", "["],
+	["keyword", "KEY"],
+	["builtin", "uint"],
+	" key",
+	["punctuation", "]"],
+	["punctuation", "."],
+	["punctuation", "("],
+	["keyword", "offset"],
+	["number", "0"],
+	["punctuation", ")"],
+	["builtin", "uint"],
+	" i ",
+	["keyword", "STORAGE"],
+	["punctuation", "{"],
+
+	["keyword", "havoc"],
+	" fooSums ",
+	["keyword", "assuming"],
+	["function", "updateFooSums"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ","],
+	" i",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["keyword", "hook"],
+	["class-name", "Sstore"],
+	" my_yolo_swag_mapping",
+	["punctuation", "["],
+	["keyword", "KEY"],
+	["builtin", "uint"],
+	" key",
+	["punctuation", "]"],
+	["punctuation", "."],
+	["punctuation", "("],
+	["keyword", "offset"],
+	["number", "32"],
+	["punctuation", ")"],
+	["builtin", "uint"],
+	" i ",
+	["keyword", "STORAGE"],
+	["punctuation", "{"],
+
+	["keyword", "havoc"],
+	" barSums ",
+	["keyword", "assuming"],
+	["function", "updateBarSums"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ","],
+	" i",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["keyword", "hook"],
+	["class-name", "Sstore"],
+	" my_needful",
+	["punctuation", "."],
+	["punctuation", "("],
+	["keyword", "offset"],
+	["number", "32"],
+	["punctuation", ")"],
+	["punctuation", "."],
+	["punctuation", "("],
+	["keyword", "offset"],
+	["number", "32"],
+	["punctuation", ")"],
+	["builtin", "uint"],
+	" i ",
+	["keyword", "STORAGE"],
+	["punctuation", "{"],
+
+	["keyword", "havoc"],
+	" needfulBarSum ",
+	["keyword", "assuming"],
+	" needfulBarSum",
+	["keyword", "@new"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["operator", "=="],
+	" needfulBarSum",
+	["keyword", "@old"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["operator", "+"],
+	" i",
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["keyword", "hook"],
+	["class-name", "Sstore"],
+	" my_needful_mapping",
+	["punctuation", "["],
+	["keyword", "KEY"],
+	["builtin", "uint"],
+	" key",
+	["punctuation", "]"],
+	["punctuation", "."],
+	["punctuation", "("],
+	["keyword", "offset"],
+	["number", "32"],
+	["punctuation", ")"],
+	["punctuation", "."],
+	["punctuation", "("],
+	["keyword", "offset"],
+	["number", "32"],
+	["punctuation", ")"],
+	["builtin", "uint"],
+	" i ",
+	["keyword", "STORAGE"],
+	["punctuation", "{"],
+
+	["keyword", "havoc"],
+	" needfulBarSums ",
+	["keyword", "assuming"],
+	["function", "updateNeedfulBarSums"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ","],
+	" i",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["keyword", "hook"],
+	["class-name", "Sstore"],
+	" my_uint_dynamic_array",
+	["punctuation", "["],
+	["keyword", "INDEX"],
+	["builtin", "uint"],
+	" index",
+	["punctuation", "]"],
+	["builtin", "uint"],
+	" n ",
+	["punctuation", "("],
+	["builtin", "uint"],
+	" old_n",
+	["punctuation", ")"],
+	["keyword", "STORAGE"],
+	["punctuation", "{"],
+
+	["keyword", "havoc"],
+	" shadowArray ",
+	["keyword", "assuming"],
+	" shadowArray",
+	["keyword", "@new"],
+	["punctuation", "("],
+	"index",
+	["punctuation", ")"],
+	["operator", "=="],
+	" n ",
+	["operator", "&&"],
+	["punctuation", "("],
+	["keyword", "forall"],
+	["builtin", "uint"],
+	" i",
+	["punctuation", "."],
+	" i ",
+	["operator", "!="],
+	" index ",
+	["operator", "="],
+	["operator", ">"],
+	" shadowArray",
+	["keyword", "@new"],
+	["punctuation", "("],
+	"i",
+	["punctuation", ")"],
+	["operator", "=="],
+	" shadowArray",
+	["keyword", "@old"],
+	["punctuation", "("],
+	"i",
+	["punctuation", ")"],
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "require"],
+	" old_n ",
+	["operator", "<"],
+	["function", "arraySum"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "havoc"],
+	" arraySum ",
+	["keyword", "assuming"],
+	" arraySum",
+	["keyword", "@new"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["operator", "=="],
+	" arraySum",
+	["keyword", "@old"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["operator", "+"],
+	["punctuation", "("],
+	"n ",
+	["operator", "-"],
+	" old_n",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["keyword", "hook"],
+	["class-name", "Sstore"],
+	" my_yete_mapping",
+	["punctuation", "["],
+	["keyword", "KEY"],
+	["builtin", "uint"],
+	" key",
+	["punctuation", "]"],
+	["punctuation", "."],
+	["punctuation", "("],
+	["keyword", "offset"],
+	["number", "0"],
+	["punctuation", ")"],
+	["builtin", "uint"],
+	" yete ",
+	["keyword", "STORAGE"],
+	["punctuation", "{"],
+
+	["keyword", "havoc"],
+	" lastYeteDawg ",
+	["keyword", "assuming"],
+	" lastYeteDawg",
+	["keyword", "@new"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["operator", "=="],
+	["function", "yete_dawg"],
+	["punctuation", "("],
+	"yete",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "havoc"],
+	" lastYete ",
+	["keyword", "assuming"],
+	" lastYete",
+	["keyword", "@new"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["operator", "=="],
+	" yete",
+	["punctuation", ";"],
+
+	["keyword", "havoc"],
+	" lastYeteHot ",
+	["keyword", "assuming"],
+	" lastYeteHot",
+	["keyword", "@new"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["operator", "=="],
+	["function", "yete_hot"],
+	["punctuation", "("],
+	"yete",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "havoc"],
+	" lastYeteDiggity ",
+	["keyword", "assuming"],
+	" lastYeteDiggity",
+	["keyword", "@new"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["operator", "=="],
+	["function", "yete_diggity"],
+	["punctuation", "("],
+	"yete",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["keyword", "rule"],
+	["class-name", "writeThingSums"],
+	["punctuation", "("],
+	["builtin", "uint"],
+	" key",
+	["punctuation", ","],
+	["builtin", "uint"],
+	" n",
+	["punctuation", ")"],
+	["punctuation", "{"],
+
+	["keyword", "require"],
+	" n ",
+	["operator", "<="],
+	["number", "25000"],
+	["punctuation", ";"],
+
+	["keyword", "require"],
+	["keyword", "forall"],
+	" MyKey k",
+	["punctuation", "."],
+	["function", "sums"],
+	["punctuation", "("],
+	"k",
+	["punctuation", ")"],
+	["operator", "=="],
+	["number", "0"],
+	["punctuation", ";"],
+
+	"\n    setThing",
+	["keyword", "@norevert"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ","],
+	" n",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	"\n    setThing",
+	["keyword", "@norevert"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ","],
+	" n",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	"\n    setThing",
+	["keyword", "@norevert"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ","],
+	" n",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "assert"],
+	["function", "sums"],
+	["punctuation", "("],
+	["function", "toMyKey"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ")"],
+	["punctuation", ")"],
+	["operator", "=="],
+	["number", "3"],
+	["operator", "*"],
+	" n",
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["keyword", "rule"],
+	["class-name", "addToArraySum"],
+	["punctuation", "("],
+	["builtin", "uint"],
+	" n",
+	["punctuation", ")"],
+	["punctuation", "{"],
+
+	["keyword", "require"],
+	" n ",
+	["operator", "<="],
+	["number", "25000"],
+	["punctuation", ";"],
+
+	["keyword", "require"],
+	["function", "arraySum"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["operator", "=="],
+	["number", "0"],
+	["punctuation", ";"],
+
+	["function", "addToArray"],
+	["punctuation", "("],
+	"n",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["function", "addToArray"],
+	["punctuation", "("],
+	"n",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["function", "addToArray"],
+	["punctuation", "("],
+	"n",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "assert"],
+	["function", "arraySum"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["operator", "=="],
+	["number", "3"],
+	["operator", "*"],
+	" n",
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["keyword", "rule"],
+	["class-name", "readThingSums"],
+	["punctuation", "("],
+	["builtin", "uint"],
+	" key",
+	["punctuation", ")"],
+	["punctuation", "{"],
+
+	["builtin", "uint"],
+	" m",
+	["punctuation", ";"],
+
+	["builtin", "uint"],
+	" n",
+	["punctuation", ";"],
+
+	["builtin", "uint"],
+	" o",
+	["punctuation", ";"],
+
+	["keyword", "require"],
+	["keyword", "forall"],
+	" MyKey k",
+	["punctuation", "."],
+	["function", "sums"],
+	["punctuation", "("],
+	"k",
+	["punctuation", ")"],
+	["operator", "=="],
+	["number", "0"],
+	["punctuation", ";"],
+
+	"\n    m ",
+	["operator", "="],
+	" getThing",
+	["keyword", "@norevert"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	"\n    n ",
+	["operator", "="],
+	" getThing",
+	["keyword", "@norevert"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	"\n    o ",
+	["operator", "="],
+	" getThing",
+	["keyword", "@norevert"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "require"],
+	" m ",
+	["operator", "<="],
+	["number", "25000"],
+	["punctuation", ";"],
+
+	["keyword", "require"],
+	" n ",
+	["operator", "<="],
+	["number", "25000"],
+	["punctuation", ";"],
+
+	["keyword", "require"],
+	" o ",
+	["operator", "<="],
+	["number", "25000"],
+	["punctuation", ";"],
+
+	["keyword", "assert"],
+	["function", "sums"],
+	["punctuation", "("],
+	["function", "toMyKey"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ")"],
+	["punctuation", ")"],
+	["operator", "=="],
+	" m ",
+	["operator", "+"],
+	" n ",
+	["operator", "+"],
+	" o",
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["keyword", "rule"],
+	["class-name", "setMembership"],
+	["punctuation", "{"],
+
+	["builtin", "uint"],
+	" X",
+	["punctuation", ";"],
+
+	["builtin", "uint"],
+	" Y",
+	["punctuation", ";"],
+
+	["builtin", "uint"],
+	" a",
+	["punctuation", ";"],
+
+	["builtin", "uint"],
+	" b",
+	["punctuation", ";"],
+
+	["keyword", "require"],
+	" X ",
+	["operator", "!="],
+	" Y",
+	["punctuation", ";"],
+
+	["keyword", "require"],
+	" a ",
+	["operator", "!="],
+	" b",
+	["punctuation", ";"],
+
+	["keyword", "require"],
+	["keyword", "forall"],
+	["builtin", "uint"],
+	" set",
+	["punctuation", "."],
+	["keyword", "forall"],
+	["builtin", "uint"],
+	" member",
+	["punctuation", "."],
+	["operator", "!"],
+	["function", "inSet"],
+	["punctuation", "("],
+	"set",
+	["punctuation", ","],
+	"member",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	"\n    addToSet",
+	["keyword", "@norevert"],
+	["punctuation", "("],
+	"X",
+	["punctuation", ","],
+	" a",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "assert"],
+	["function", "inSet"],
+	["punctuation", "("],
+	"X",
+	["punctuation", ","],
+	" a",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "assert"],
+	["operator", "!"],
+	["function", "inSet"],
+	["punctuation", "("],
+	"X",
+	["punctuation", ","],
+	"b",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "assert"],
+	["operator", "!"],
+	["function", "inSet"],
+	["punctuation", "("],
+	"Y",
+	["punctuation", ","],
+	"a",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "assert"],
+	["operator", "!"],
+	["function", "inSet"],
+	["punctuation", "("],
+	"Y",
+	["punctuation", ","],
+	"b",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["keyword", "rule"],
+	["class-name", "writeYoloSwagFooSum"],
+	["punctuation", "("],
+	["builtin", "uint"],
+	" n",
+	["punctuation", ")"],
+	["punctuation", "{"],
+
+	["keyword", "require"],
+	" n ",
+	["operator", "<="],
+	["number", "25000"],
+	["punctuation", ";"],
+
+	["keyword", "require"],
+	["function", "fooSum"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["operator", "=="],
+	["number", "0"],
+	["punctuation", ";"],
+
+	"\n    setYoloSwagFoo",
+	["keyword", "@norevert"],
+	["punctuation", "("],
+	"n",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	"\n    setYoloSwagFoo",
+	["keyword", "@norevert"],
+	["punctuation", "("],
+	"n",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	"\n    setYoloSwagFoo",
+	["keyword", "@norevert"],
+	["punctuation", "("],
+	"n",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "assert"],
+	["function", "fooSum"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["operator", "=="],
+	["number", "3"],
+	["operator", "*"],
+	" n",
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["keyword", "rule"],
+	["class-name", "writeYoloSwagBarSum"],
+	["punctuation", "("],
+	["builtin", "uint"],
+	" n",
+	["punctuation", ")"],
+	["punctuation", "{"],
+
+	["keyword", "require"],
+	" n ",
+	["operator", "<="],
+	["number", "25000"],
+	["punctuation", ";"],
+
+	["keyword", "require"],
+	["function", "barSum"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["operator", "=="],
+	["number", "0"],
+	["punctuation", ";"],
+
+	"\n    setYoloSwagBar",
+	["keyword", "@norevert"],
+	["punctuation", "("],
+	"n",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	"\n    setYoloSwagBar",
+	["keyword", "@norevert"],
+	["punctuation", "("],
+	"n",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	"\n    setYoloSwagBar",
+	["keyword", "@norevert"],
+	["punctuation", "("],
+	"n",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "assert"],
+	["function", "barSum"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["operator", "=="],
+	["number", "3"],
+	["operator", "*"],
+	" n",
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["keyword", "rule"],
+	["class-name", "writeYoloSwagFooSums"],
+	["punctuation", "("],
+	["builtin", "uint"],
+	" key",
+	["punctuation", ","],
+	["builtin", "uint"],
+	" n",
+	["punctuation", ")"],
+	["punctuation", "{"],
+
+	["keyword", "require"],
+	" n ",
+	["operator", "<="],
+	["number", "25000"],
+	["punctuation", ";"],
+
+	["keyword", "require"],
+	["keyword", "forall"],
+	" MyKey k",
+	["punctuation", "."],
+	["function", "fooSums"],
+	["punctuation", "("],
+	"k",
+	["punctuation", ")"],
+	["operator", "=="],
+	["number", "0"],
+	["punctuation", ";"],
+
+	"\n    setYoloSwagMappedFoo",
+	["keyword", "@norevert"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ","],
+	" n",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	"\n    setYoloSwagMappedFoo",
+	["keyword", "@norevert"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ","],
+	" n",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	"\n    setYoloSwagMappedFoo",
+	["keyword", "@norevert"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ","],
+	" n",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "assert"],
+	["function", "fooSums"],
+	["punctuation", "("],
+	["function", "toMyKey"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ")"],
+	["punctuation", ")"],
+	["operator", "=="],
+	["number", "3"],
+	["operator", "*"],
+	" n",
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["keyword", "rule"],
+	["class-name", "writeYoloSwagBarSums"],
+	["punctuation", "("],
+	["builtin", "uint"],
+	" key",
+	["punctuation", ","],
+	["builtin", "uint"],
+	" n",
+	["punctuation", ")"],
+	["punctuation", "{"],
+
+	["keyword", "require"],
+	" n ",
+	["operator", "<="],
+	["number", "25000"],
+	["punctuation", ";"],
+
+	["keyword", "require"],
+	["keyword", "forall"],
+	" MyKey k",
+	["punctuation", "."],
+	["function", "barSums"],
+	["punctuation", "("],
+	"k",
+	["punctuation", ")"],
+	["operator", "=="],
+	["number", "0"],
+	["punctuation", ";"],
+
+	"\n    setYoloSwagMappedBar",
+	["keyword", "@norevert"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ","],
+	" n",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	"\n    setYoloSwagMappedBar",
+	["keyword", "@norevert"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ","],
+	" n",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	"\n    setYoloSwagMappedBar",
+	["keyword", "@norevert"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ","],
+	" n",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "assert"],
+	["function", "barSums"],
+	["punctuation", "("],
+	["function", "toMyKey"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ")"],
+	["punctuation", ")"],
+	["operator", "=="],
+	["number", "3"],
+	["operator", "*"],
+	" n",
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["keyword", "rule"],
+	["class-name", "writeNeedfulNestedYoloSwagBarSum"],
+	["punctuation", "("],
+	["builtin", "uint"],
+	" n",
+	["punctuation", ")"],
+	["punctuation", "{"],
+
+	["keyword", "require"],
+	" n ",
+	["operator", "<="],
+	["number", "25000"],
+	["punctuation", ";"],
+
+	["keyword", "require"],
+	["function", "needfulBarSum"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["operator", "=="],
+	["number", "0"],
+	["punctuation", ";"],
+
+	"\n    setNeedfulNestedYoloSwagBar",
+	["keyword", "@norevert"],
+	["punctuation", "("],
+	"n",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	"\n    setNeedfulNestedYoloSwagBar",
+	["keyword", "@norevert"],
+	["punctuation", "("],
+	"n",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	"\n    setNeedfulNestedYoloSwagBar",
+	["keyword", "@norevert"],
+	["punctuation", "("],
+	"n",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "assert"],
+	["function", "needfulBarSum"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["operator", "=="],
+	["number", "3"],
+	["operator", "*"],
+	" n",
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["keyword", "rule"],
+	["class-name", "writeMappedNeedfulNestedYoloSwagBarSums"],
+	["punctuation", "("],
+	["builtin", "uint"],
+	" key",
+	["punctuation", ","],
+	["builtin", "uint"],
+	" n",
+	["punctuation", ")"],
+	["punctuation", "{"],
+
+	["keyword", "require"],
+	" n ",
+	["operator", "<="],
+	["number", "25000"],
+	["punctuation", ";"],
+
+	["keyword", "require"],
+	["keyword", "forall"],
+	" MyKey k",
+	["punctuation", "."],
+	["function", "needfulBarSums"],
+	["punctuation", "("],
+	"k",
+	["punctuation", ")"],
+	["operator", "=="],
+	["number", "0"],
+	["punctuation", ";"],
+
+	"\n    setMappedNeedfulNestedYoloSwagBar",
+	["keyword", "@norevert"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ","],
+	" n",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	"\n    setMappedNeedfulNestedYoloSwagBar",
+	["keyword", "@norevert"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ","],
+	" n",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	"\n    setMappedNeedfulNestedYoloSwagBar",
+	["keyword", "@norevert"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ","],
+	" n",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "assert"],
+	["function", "needfulBarSums"],
+	["punctuation", "("],
+	["function", "toMyKey"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ")"],
+	["punctuation", ")"],
+	["operator", "=="],
+	["number", "3"],
+	["operator", "*"],
+	" n",
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["keyword", "rule"],
+	["class-name", "writeDynamicArrayThenDelete"],
+	["punctuation", "("],
+	["builtin", "uint"],
+	" n",
+	["punctuation", ","],
+	["builtin", "uint"],
+	" length",
+	["punctuation", ")"],
+	["punctuation", "{"],
+
+	["keyword", "require"],
+	" n ",
+	["operator", "<="],
+	["number", "25000"],
+	["punctuation", ";"],
+
+	["comment", "// 3 since BMC is set at 3"],
+
+	["keyword", "require"],
+	" length ",
+	["operator", "<="],
+	["number", "3"],
+	["punctuation", ";"],
+
+	["keyword", "require"],
+	" length ",
+	["operator", ">"],
+	["number", "0"],
+	["punctuation", ";"],
+
+	["builtin", "uint"],
+	" last ",
+	["operator", "="],
+	" length ",
+	["operator", "-"],
+	["number", "1"],
+	["punctuation", ";"],
+
+	["function", "setArrayThenDelete"],
+	["punctuation", "("],
+	"n",
+	["punctuation", ","],
+	" length",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "assert"],
+	["function", "shadowArray"],
+	["punctuation", "("],
+	["number", "0"],
+	["punctuation", ")"],
+	["operator", "=="],
+	["number", "0"],
+	["punctuation", ";"],
+
+	["keyword", "assert"],
+	["function", "shadowArray"],
+	["punctuation", "("],
+	"last",
+	["punctuation", ")"],
+	["operator", "=="],
+	["number", "0"],
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["keyword", "rule"],
+	["class-name", "writeDynamicArrayThenDelete2"],
+	["punctuation", "("],
+	["builtin", "uint"],
+	" n",
+	["punctuation", ","],
+	["builtin", "uint"],
+	" length",
+	["punctuation", ")"],
+	["punctuation", "{"],
+
+	["keyword", "require"],
+	" n ",
+	["operator", "<="],
+	["number", "25000"],
+	["punctuation", ";"],
+
+	["keyword", "require"],
+	" length ",
+	["operator", "<="],
+	["number", "25000"],
+	["punctuation", ";"],
+
+	["keyword", "require"],
+	["function", "arraySum"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["operator", "=="],
+	["number", "0"],
+	["punctuation", ";"],
+
+	["function", "setArrayThenDelete"],
+	["punctuation", "("],
+	"n",
+	["punctuation", ","],
+	" length",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "assert"],
+	["function", "arraySum"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["operator", "=="],
+	["number", "0"],
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["keyword", "rule"],
+	["class-name", "writeMappedYeteHot"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	" n",
+	["punctuation", ","],
+	["builtin", "uint64"],
+	" v",
+	["punctuation", ")"],
+	["punctuation", "{"],
+
+	["function", "setMappedYeteHot"],
+	["punctuation", "("],
+	"n",
+	["punctuation", ","],
+	" v",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "assert"],
+	" v ",
+	["operator", "=="],
+	["function", "lastYeteHot"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["keyword", "rule"],
+	["class-name", "writeMappedYeteDiggity"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	" n",
+	["punctuation", ","],
+	["builtin", "uint64"],
+	" v",
+	["punctuation", ")"],
+	["punctuation", "{"],
+
+	["function", "setMappedYeteDiggity"],
+	["punctuation", "("],
+	"n",
+	["punctuation", ","],
+	" v",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "assert"],
+	" v ",
+	["operator", "=="],
+	["function", "lastYeteDiggity"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["keyword", "rule"],
+	["class-name", "writeMappedYeteDawg"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	" n",
+	["punctuation", ","],
+	["builtin", "uint64"],
+	" v",
+	["punctuation", ")"],
+	["punctuation", "{"],
+
+	["function", "setMappedYeteDawg"],
+	["punctuation", "("],
+	"n",
+	["punctuation", ","],
+	" v",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "assert"],
+	" v ",
+	["operator", "=="],
+	["function", "lastYeteDawg"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["keyword", "rule"],
+	["class-name", "setBalance"],
+	["punctuation", "("],
+	["builtin", "address"],
+	" a",
+	["punctuation", ","],
+	["builtin", "uint256"],
+	" b",
+	["punctuation", ")"],
+	["punctuation", "{"],
+
+	["comment", "// trigger balanceOf hook in case some error gets triggered only"],
+
+	["comment", "// if hook gets used"],
+
+	["function", "setBalance"],
+	["punctuation", "("],
+	"a",
+	["punctuation", ","],
+	" b",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "assert"],
+	["boolean", "true"],
+	["punctuation", ";"],
+
+	["punctuation", "}"]
+]

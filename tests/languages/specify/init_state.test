@@ -1,0 +1,99 @@
+methods {
+    unbondedValue(address) returns uint256 envfree
+    everDeposited(address) returns uint256 envfree
+    systemBalance() returns uint256 envfree
+}
+
+
+ghost operatorBondSum(uint256) returns uint256 {
+    init_state axiom forall uint256 operator2. operatorBondSum(operator2) == 0;
+}
+ghost bondIdToOperator(uint256) returns address;
+ghost allUnbounded() returns uint256 {
+    init_state axiom allUnbounded() == 0;
+}
+
+----------------------------------------------------
+
+[
+	["keyword", "methods"],
+	["punctuation", "{"],
+
+	["function", "unbondedValue"],
+	["punctuation", "("],
+	["builtin", "address"],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "uint256"],
+	["keyword", "envfree"],
+
+	["function", "everDeposited"],
+	["punctuation", "("],
+	["builtin", "address"],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "uint256"],
+	["keyword", "envfree"],
+
+	["function", "systemBalance"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "uint256"],
+	["keyword", "envfree"],
+
+	["punctuation", "}"],
+
+	["keyword", "ghost"],
+	["class-name", "operatorBondSum"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "uint256"],
+	["punctuation", "{"],
+
+	["keyword", "init_state"],
+	["keyword", "axiom"],
+	["keyword", "forall"],
+	["builtin", "uint256"],
+	" operator2",
+	["punctuation", "."],
+	["function", "operatorBondSum"],
+	["punctuation", "("],
+	"operator2",
+	["punctuation", ")"],
+	["operator", "=="],
+	["number", "0"],
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["keyword", "ghost"],
+	["class-name", "bondIdToOperator"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "address"],
+	["punctuation", ";"],
+
+	["keyword", "ghost"],
+	["class-name", "allUnbounded"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "uint256"],
+	["punctuation", "{"],
+
+	["keyword", "init_state"],
+	["keyword", "axiom"],
+	["function", "allUnbounded"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["operator", "=="],
+	["number", "0"],
+	["punctuation", ";"],
+
+	["punctuation", "}"]
+]

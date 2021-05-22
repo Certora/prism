@@ -1,0 +1,1114 @@
+methods {
+    getNext(uint256) returns uint256 envfree
+    getPrev(uint256) returns uint256 envfree
+    getHead() returns uint256 envfree
+    insert(uint256, uint256) envfree
+    insertAtHead(uint256) envfree
+    remove(uint256) envfree
+    contains(uint256) returns bool envfree
+}
+
+invariant empty(uint256 key) sinvoke getHead() == 0 => !sinvoke contains(key)
+{
+    preserved remove(uint256 removeKey)
+    {
+        call instancesForTwo(key, removeKey);
+    }
+}
+
+invariant one(uint256 key) sinvoke contains(key) => sinvoke getHead() != 0
+{
+    preserved remove(uint256 removeKey)
+    {
+        call instancesForTwo(key, removeKey);
+    }
+}
+
+invariant two(uint256 key1, uint256 key2) sinvoke contains(key1) && sinvoke contains(key2) && key1!=key2 => sinvoke getNext(sinvoke getHead()) != 0
+
+invariant zeroNotAnElement() !(sinvoke contains(0))
+{
+    preserved remove(uint256 removeKey)
+    {
+        requireInvariant headContained();
+        requireInvariant zeroNotAnElement();
+        call allInvariants(sinvoke getHead());
+        call allInvariants(removeKey);
+    }
+}
+
+invariant headContained() sinvoke getHead() != 0 => sinvoke contains(sinvoke getHead())
+{
+    preserved remove(uint256 removeKey)
+    {
+        requireInvariant headContained();
+        requireInvariant zeroNotAnElement();
+        call allInvariants(sinvoke getHead());
+        call allInvariants(removeKey);
+    }
+}
+
+invariant firstKeyHead(uint256 key) sinvoke contains(key) =>    (sinvoke getPrev(key) == 0 => key == sinvoke getHead() ) 
+                                                             && (key == sinvoke getHead() => sinvoke getPrev(key) == 0) 
+{
+    preserved remove(uint256 removeKey)
+    {
+        call instancesForTwo(key, removeKey);
+    }
+    preserved insertAtHead(uint256 newHead)
+    {
+        call instancesForTwo(key, newHead);
+    }
+    preserved insert(uint256 newKey, uint256 previousKey)
+    {
+        call instancesForThree(key, newKey, previousKey);
+    }
+}
+
+invariant reciprocal1(uint256 key) sinvoke contains(key) && sinvoke getPrev(key) != 0 => sinvoke getNext(sinvoke getPrev(key)) == key
+{
+    preserved remove(uint256 removeKey)
+    {
+        call instancesForTwo(key, removeKey);
+    }
+    preserved insertAtHead(uint256 newHead)
+    {
+        call instancesForTwo(key, newHead);
+    }
+    preserved insert(uint256 newKey, uint256 previousKey)
+    {
+        call instancesForThree(key, newKey, previousKey);
+    }
+}
+
+
+invariant reciprocal2(uint256 key) sinvoke contains(key) && sinvoke getNext(key) != 0 => sinvoke getPrev(sinvoke getNext(key)) == key
+{
+    preserved remove(uint256 removeKey)
+    {
+        call instancesForTwo(key, removeKey);
+    }
+    preserved insertAtHead(uint256 newHead)
+    {
+        call instancesForTwo(key, newHead);
+    }
+    preserved insert(uint256 newKey, uint256 previousKey)
+    {
+        call instancesForThree(key, newKey, previousKey);
+    }
+}
+
+invariant nextContained(uint256 key) sinvoke contains(key) && sinvoke getNext(key) != 0 => sinvoke contains(sinvoke getNext(key))
+{
+    preserved remove(uint256 removeKey)
+    {
+        call instancesForTwo(key, removeKey);
+    }
+}
+
+invariant prevContained(uint256 key) sinvoke contains(key) && sinvoke getPrev(key) != 0 => sinvoke contains(sinvoke getPrev(key))
+{
+    preserved remove(uint256 removeKey)
+    {
+        call instancesForTwo(key, removeKey);
+    }
+}
+
+function instancesForThree(uint256 key, uint256 newKey, uint256 previousKey) {
+    call allInvariants(key);
+    call allInvariants(newKey);
+    call allInvariants(previousKey);
+    uint256 head = sinvoke getHead();
+    call allInvariants(head);
+    requireInvariant headContained();
+    requireInvariant zeroNotAnElement();
+    requireInvariant two(key, newKey);
+    requireInvariant two(newKey, previousKey);
+    requireInvariant two(key, previousKey);
+    requireInvariant two(previousKey, head);
+}
+
+function instancesForTwo(uint256 key, uint256 removeKey) {
+    call allInvariants(key);
+    call allInvariants(removeKey);
+    uint256 head = sinvoke getHead();
+    call allInvariants(head);
+    requireInvariant headContained();
+    requireInvariant zeroNotAnElement();
+    requireInvariant two(key, removeKey);
+}
+
+function allInvariants(uint256 key) {
+    requireInvariant empty(key);
+    requireInvariant firstKeyHead(key);
+    requireInvariant reciprocal1(key);
+    requireInvariant reciprocal2(key);
+    requireInvariant nextContained(key);
+    requireInvariant prevContained(key);
+    requireInvariant one(key);
+}
+
+----------------------------------------------------
+
+[
+	["keyword", "methods"],
+	["punctuation", "{"],
+
+	["function", "getNext"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "uint256"],
+	["keyword", "envfree"],
+
+	["function", "getPrev"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "uint256"],
+	["keyword", "envfree"],
+
+	["function", "getHead"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "uint256"],
+	["keyword", "envfree"],
+
+	["function", "insert"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	["punctuation", ","],
+	["builtin", "uint256"],
+	["punctuation", ")"],
+	["keyword", "envfree"],
+
+	["function", "insertAtHead"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	["punctuation", ")"],
+	["keyword", "envfree"],
+
+	["function", "remove"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	["punctuation", ")"],
+	["keyword", "envfree"],
+
+	["function", "contains"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "bool"],
+	["keyword", "envfree"],
+
+	["punctuation", "}"],
+
+	["keyword", "invariant"],
+	["class-name", "empty"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	" key",
+	["punctuation", ")"],
+	["keyword", "sinvoke"],
+	["function", "getHead"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["operator", "=="],
+	["number", "0"],
+	["operator", "="],
+	["operator", ">"],
+	["operator", "!"],
+	["keyword", "sinvoke"],
+	["function", "contains"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ")"],
+
+	["punctuation", "{"],
+
+	["keyword", "preserved"],
+	["function", "remove"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	" removeKey",
+	["punctuation", ")"],
+
+	["punctuation", "{"],
+
+	["keyword", "call"],
+	["function", "instancesForTwo"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ","],
+	" removeKey",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["punctuation", "}"],
+
+	["keyword", "invariant"],
+	["class-name", "one"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	" key",
+	["punctuation", ")"],
+	["keyword", "sinvoke"],
+	["function", "contains"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ")"],
+	["operator", "="],
+	["operator", ">"],
+	["keyword", "sinvoke"],
+	["function", "getHead"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["operator", "!="],
+	["number", "0"],
+
+	["punctuation", "{"],
+
+	["keyword", "preserved"],
+	["function", "remove"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	" removeKey",
+	["punctuation", ")"],
+
+	["punctuation", "{"],
+
+	["keyword", "call"],
+	["function", "instancesForTwo"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ","],
+	" removeKey",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["punctuation", "}"],
+
+	["keyword", "invariant"],
+	["class-name", "two"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	" key1",
+	["punctuation", ","],
+	["builtin", "uint256"],
+	" key2",
+	["punctuation", ")"],
+	["keyword", "sinvoke"],
+	["function", "contains"],
+	["punctuation", "("],
+	"key1",
+	["punctuation", ")"],
+	["operator", "&&"],
+	["keyword", "sinvoke"],
+	["function", "contains"],
+	["punctuation", "("],
+	"key2",
+	["punctuation", ")"],
+	["operator", "&&"],
+	" key1",
+	["operator", "!="],
+	"key2 ",
+	["operator", "="],
+	["operator", ">"],
+	["keyword", "sinvoke"],
+	["function", "getNext"],
+	["punctuation", "("],
+	["keyword", "sinvoke"],
+	["function", "getHead"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["punctuation", ")"],
+	["operator", "!="],
+	["number", "0"],
+
+	["keyword", "invariant"],
+	["class-name", "zeroNotAnElement"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["operator", "!"],
+	["punctuation", "("],
+	["keyword", "sinvoke"],
+	["function", "contains"],
+	["punctuation", "("],
+	["number", "0"],
+	["punctuation", ")"],
+	["punctuation", ")"],
+
+	["punctuation", "{"],
+
+	["keyword", "preserved"],
+	["function", "remove"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	" removeKey",
+	["punctuation", ")"],
+
+	["punctuation", "{"],
+
+	["keyword", "requireInvariant"],
+	["function", "headContained"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "requireInvariant"],
+	["function", "zeroNotAnElement"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "call"],
+	["function", "allInvariants"],
+	["punctuation", "("],
+	["keyword", "sinvoke"],
+	["function", "getHead"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "call"],
+	["function", "allInvariants"],
+	["punctuation", "("],
+	"removeKey",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["punctuation", "}"],
+
+	["keyword", "invariant"],
+	["class-name", "headContained"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["keyword", "sinvoke"],
+	["function", "getHead"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["operator", "!="],
+	["number", "0"],
+	["operator", "="],
+	["operator", ">"],
+	["keyword", "sinvoke"],
+	["function", "contains"],
+	["punctuation", "("],
+	["keyword", "sinvoke"],
+	["function", "getHead"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["punctuation", ")"],
+
+	["punctuation", "{"],
+
+	["keyword", "preserved"],
+	["function", "remove"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	" removeKey",
+	["punctuation", ")"],
+
+	["punctuation", "{"],
+
+	["keyword", "requireInvariant"],
+	["function", "headContained"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "requireInvariant"],
+	["function", "zeroNotAnElement"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "call"],
+	["function", "allInvariants"],
+	["punctuation", "("],
+	["keyword", "sinvoke"],
+	["function", "getHead"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "call"],
+	["function", "allInvariants"],
+	["punctuation", "("],
+	"removeKey",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["punctuation", "}"],
+
+	["keyword", "invariant"],
+	["class-name", "firstKeyHead"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	" key",
+	["punctuation", ")"],
+	["keyword", "sinvoke"],
+	["function", "contains"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ")"],
+	["operator", "="],
+	["operator", ">"],
+	["punctuation", "("],
+	["keyword", "sinvoke"],
+	["function", "getPrev"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ")"],
+	["operator", "=="],
+	["number", "0"],
+	["operator", "="],
+	["operator", ">"],
+	" key ",
+	["operator", "=="],
+	["keyword", "sinvoke"],
+	["function", "getHead"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["punctuation", ")"],
+
+	["operator", "&&"],
+	["punctuation", "("],
+	"key ",
+	["operator", "=="],
+	["keyword", "sinvoke"],
+	["function", "getHead"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["operator", "="],
+	["operator", ">"],
+	["keyword", "sinvoke"],
+	["function", "getPrev"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ")"],
+	["operator", "=="],
+	["number", "0"],
+	["punctuation", ")"],
+
+	["punctuation", "{"],
+
+	["keyword", "preserved"],
+	["function", "remove"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	" removeKey",
+	["punctuation", ")"],
+
+	["punctuation", "{"],
+
+	["keyword", "call"],
+	["function", "instancesForTwo"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ","],
+	" removeKey",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["keyword", "preserved"],
+	["function", "insertAtHead"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	" newHead",
+	["punctuation", ")"],
+
+	["punctuation", "{"],
+
+	["keyword", "call"],
+	["function", "instancesForTwo"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ","],
+	" newHead",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["keyword", "preserved"],
+	["function", "insert"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	" newKey",
+	["punctuation", ","],
+	["builtin", "uint256"],
+	" previousKey",
+	["punctuation", ")"],
+
+	["punctuation", "{"],
+
+	["keyword", "call"],
+	["function", "instancesForThree"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ","],
+	" newKey",
+	["punctuation", ","],
+	" previousKey",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["punctuation", "}"],
+
+	["keyword", "invariant"],
+	["class-name", "reciprocal1"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	" key",
+	["punctuation", ")"],
+	["keyword", "sinvoke"],
+	["function", "contains"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ")"],
+	["operator", "&&"],
+	["keyword", "sinvoke"],
+	["function", "getPrev"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ")"],
+	["operator", "!="],
+	["number", "0"],
+	["operator", "="],
+	["operator", ">"],
+	["keyword", "sinvoke"],
+	["function", "getNext"],
+	["punctuation", "("],
+	["keyword", "sinvoke"],
+	["function", "getPrev"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ")"],
+	["punctuation", ")"],
+	["operator", "=="],
+	" key\n",
+
+	["punctuation", "{"],
+
+	["keyword", "preserved"],
+	["function", "remove"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	" removeKey",
+	["punctuation", ")"],
+
+	["punctuation", "{"],
+
+	["keyword", "call"],
+	["function", "instancesForTwo"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ","],
+	" removeKey",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["keyword", "preserved"],
+	["function", "insertAtHead"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	" newHead",
+	["punctuation", ")"],
+
+	["punctuation", "{"],
+
+	["keyword", "call"],
+	["function", "instancesForTwo"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ","],
+	" newHead",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["keyword", "preserved"],
+	["function", "insert"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	" newKey",
+	["punctuation", ","],
+	["builtin", "uint256"],
+	" previousKey",
+	["punctuation", ")"],
+
+	["punctuation", "{"],
+
+	["keyword", "call"],
+	["function", "instancesForThree"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ","],
+	" newKey",
+	["punctuation", ","],
+	" previousKey",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["punctuation", "}"],
+
+	["keyword", "invariant"],
+	["class-name", "reciprocal2"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	" key",
+	["punctuation", ")"],
+	["keyword", "sinvoke"],
+	["function", "contains"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ")"],
+	["operator", "&&"],
+	["keyword", "sinvoke"],
+	["function", "getNext"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ")"],
+	["operator", "!="],
+	["number", "0"],
+	["operator", "="],
+	["operator", ">"],
+	["keyword", "sinvoke"],
+	["function", "getPrev"],
+	["punctuation", "("],
+	["keyword", "sinvoke"],
+	["function", "getNext"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ")"],
+	["punctuation", ")"],
+	["operator", "=="],
+	" key\n",
+
+	["punctuation", "{"],
+
+	["keyword", "preserved"],
+	["function", "remove"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	" removeKey",
+	["punctuation", ")"],
+
+	["punctuation", "{"],
+
+	["keyword", "call"],
+	["function", "instancesForTwo"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ","],
+	" removeKey",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["keyword", "preserved"],
+	["function", "insertAtHead"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	" newHead",
+	["punctuation", ")"],
+
+	["punctuation", "{"],
+
+	["keyword", "call"],
+	["function", "instancesForTwo"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ","],
+	" newHead",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["keyword", "preserved"],
+	["function", "insert"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	" newKey",
+	["punctuation", ","],
+	["builtin", "uint256"],
+	" previousKey",
+	["punctuation", ")"],
+
+	["punctuation", "{"],
+
+	["keyword", "call"],
+	["function", "instancesForThree"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ","],
+	" newKey",
+	["punctuation", ","],
+	" previousKey",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["punctuation", "}"],
+
+	["keyword", "invariant"],
+	["class-name", "nextContained"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	" key",
+	["punctuation", ")"],
+	["keyword", "sinvoke"],
+	["function", "contains"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ")"],
+	["operator", "&&"],
+	["keyword", "sinvoke"],
+	["function", "getNext"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ")"],
+	["operator", "!="],
+	["number", "0"],
+	["operator", "="],
+	["operator", ">"],
+	["keyword", "sinvoke"],
+	["function", "contains"],
+	["punctuation", "("],
+	["keyword", "sinvoke"],
+	["function", "getNext"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ")"],
+	["punctuation", ")"],
+
+	["punctuation", "{"],
+
+	["keyword", "preserved"],
+	["function", "remove"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	" removeKey",
+	["punctuation", ")"],
+
+	["punctuation", "{"],
+
+	["keyword", "call"],
+	["function", "instancesForTwo"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ","],
+	" removeKey",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["punctuation", "}"],
+
+	["keyword", "invariant"],
+	["class-name", "prevContained"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	" key",
+	["punctuation", ")"],
+	["keyword", "sinvoke"],
+	["function", "contains"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ")"],
+	["operator", "&&"],
+	["keyword", "sinvoke"],
+	["function", "getPrev"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ")"],
+	["operator", "!="],
+	["number", "0"],
+	["operator", "="],
+	["operator", ">"],
+	["keyword", "sinvoke"],
+	["function", "contains"],
+	["punctuation", "("],
+	["keyword", "sinvoke"],
+	["function", "getPrev"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ")"],
+	["punctuation", ")"],
+
+	["punctuation", "{"],
+
+	["keyword", "preserved"],
+	["function", "remove"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	" removeKey",
+	["punctuation", ")"],
+
+	["punctuation", "{"],
+
+	["keyword", "call"],
+	["function", "instancesForTwo"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ","],
+	" removeKey",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["punctuation", "}"],
+
+	["keyword", "function"],
+	["class-name", "instancesForThree"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	" key",
+	["punctuation", ","],
+	["builtin", "uint256"],
+	" newKey",
+	["punctuation", ","],
+	["builtin", "uint256"],
+	" previousKey",
+	["punctuation", ")"],
+	["punctuation", "{"],
+
+	["keyword", "call"],
+	["function", "allInvariants"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "call"],
+	["function", "allInvariants"],
+	["punctuation", "("],
+	"newKey",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "call"],
+	["function", "allInvariants"],
+	["punctuation", "("],
+	"previousKey",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["builtin", "uint256"],
+	" head ",
+	["operator", "="],
+	["keyword", "sinvoke"],
+	["function", "getHead"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "call"],
+	["function", "allInvariants"],
+	["punctuation", "("],
+	"head",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "requireInvariant"],
+	["function", "headContained"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "requireInvariant"],
+	["function", "zeroNotAnElement"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "requireInvariant"],
+	["function", "two"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ","],
+	" newKey",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "requireInvariant"],
+	["function", "two"],
+	["punctuation", "("],
+	"newKey",
+	["punctuation", ","],
+	" previousKey",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "requireInvariant"],
+	["function", "two"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ","],
+	" previousKey",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "requireInvariant"],
+	["function", "two"],
+	["punctuation", "("],
+	"previousKey",
+	["punctuation", ","],
+	" head",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["keyword", "function"],
+	["class-name", "instancesForTwo"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	" key",
+	["punctuation", ","],
+	["builtin", "uint256"],
+	" removeKey",
+	["punctuation", ")"],
+	["punctuation", "{"],
+
+	["keyword", "call"],
+	["function", "allInvariants"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "call"],
+	["function", "allInvariants"],
+	["punctuation", "("],
+	"removeKey",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["builtin", "uint256"],
+	" head ",
+	["operator", "="],
+	["keyword", "sinvoke"],
+	["function", "getHead"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "call"],
+	["function", "allInvariants"],
+	["punctuation", "("],
+	"head",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "requireInvariant"],
+	["function", "headContained"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "requireInvariant"],
+	["function", "zeroNotAnElement"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "requireInvariant"],
+	["function", "two"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ","],
+	" removeKey",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["keyword", "function"],
+	["class-name", "allInvariants"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	" key",
+	["punctuation", ")"],
+	["punctuation", "{"],
+
+	["keyword", "requireInvariant"],
+	["function", "empty"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "requireInvariant"],
+	["function", "firstKeyHead"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "requireInvariant"],
+	["function", "reciprocal1"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "requireInvariant"],
+	["function", "reciprocal2"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "requireInvariant"],
+	["function", "nextContained"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "requireInvariant"],
+	["function", "prevContained"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "requireInvariant"],
+	["function", "one"],
+	["punctuation", "("],
+	"key",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["punctuation", "}"]
+]

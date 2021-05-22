@@ -1,0 +1,98 @@
+methods {
+ 0x96d3c67a => myArgumentlessGhost();
+ willBeSummarizedTwoArgs(uint256 a, uint b) => myTwoArgGhost(a, b);
+}
+
+ghost myArgumentlessGhost() returns uint256 {
+        axiom myArgumentlessGhost() == 5;
+}
+ghost myTwoArgGhost(uint256,uint256) returns uint256 {
+        axiom forall uint256 x. forall uint256 y. myTwoArgGhost(x, y) == x + y;
+}
+
+----------------------------------------------------
+
+[
+	["keyword", "methods"],
+	["punctuation", "{"],
+
+	["number", "0x96d3c67a"],
+	["operator", "="],
+	["operator", ">"],
+	["function", "myArgumentlessGhost"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["function", "willBeSummarizedTwoArgs"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	" a",
+	["punctuation", ","],
+	["builtin", "uint"],
+	" b",
+	["punctuation", ")"],
+	["operator", "="],
+	["operator", ">"],
+	["function", "myTwoArgGhost"],
+	["punctuation", "("],
+	"a",
+	["punctuation", ","],
+	" b",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["keyword", "ghost"],
+	["class-name", "myArgumentlessGhost"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "uint256"],
+	["punctuation", "{"],
+
+	["keyword", "axiom"],
+	["function", "myArgumentlessGhost"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["operator", "=="],
+	["number", "5"],
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["keyword", "ghost"],
+	["class-name", "myTwoArgGhost"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	["punctuation", ","],
+	["builtin", "uint256"],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "uint256"],
+	["punctuation", "{"],
+
+	["keyword", "axiom"],
+	["keyword", "forall"],
+	["builtin", "uint256"],
+	" x",
+	["punctuation", "."],
+	["keyword", "forall"],
+	["builtin", "uint256"],
+	" y",
+	["punctuation", "."],
+	["function", "myTwoArgGhost"],
+	["punctuation", "("],
+	"x",
+	["punctuation", ","],
+	" y",
+	["punctuation", ")"],
+	["operator", "=="],
+	" x ",
+	["operator", "+"],
+	" y",
+	["punctuation", ";"],
+
+	["punctuation", "}"]
+]

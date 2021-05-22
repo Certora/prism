@@ -1,0 +1,3359 @@
+methods {
+	isAccount(address) returns bool	envfree
+	isSigner(address,address,bytes32) returns bool envfree // account, signer, role
+	_getAuthorizedBy(address) returns address envfree
+	_getDataEncryptionKeyLen(address) returns uint256 
+	_getNameLen(address) returns uint256 
+	getWalletAddress(address) returns address envfree
+	getAttestationSigner(address) returns address envfree
+	_getAttestationSigner(address) returns address envfree
+	getVoteSigner(address) returns address envfree
+	_getVoteSigner(address) returns address envfree
+	getValidatorSigner(address) returns address envfree
+	_getValidatorSigner(address) returns address envfree
+	getDefaultSigner(address,bytes32) returns address envfree
+	_getDefaultSigner(address,bytes32) returns address envfree
+	getLegacySigner(address,bytes32) returns address envfree
+	isLegacyRole(bytes32) returns bool envfree
+	isCompletedSignerAuthorization(address,bytes32,address) returns bool envfree
+	isStartedSignerAuthorization(address,bytes32,address) returns bool envfree
+	voteSignerToAccount(address) returns address envfree
+	validatorSignerToAccount(address) returns address envfree
+	attestationSignerToAccount(address) returns address envfree
+	signerToAccount(address) returns address envfree
+	_getValidatorRole() returns bytes32 envfree
+	_getAttestationRole() returns bytes32 envfree
+	_getVoteRole() returns bytes32 envfree
+	getIndexedSigner(address,bytes32) returns address envfree
+}
+
+/**
+ * If an address x is not an account then all mapping from x should be empty
+ */
+invariant account_empty_if_not_exist(env e, address x) 
+  !isAccount(x) => 
+    getWalletAddress(x) == 0 &&
+    _getAttestationSigner(x) == 0 &&
+    _getVoteSigner(x) == 0 &&
+    _getValidatorSigner(x) == 0
+
+
+/**
+ * An address d that is authorized by some account x can not become an account
+ */
+invariant address_cant_be_both_account_and_signer(address x, address d) 
+  (x != 0 && d != 0 && x != d && _getAuthorizedBy(d) == x) => 
+    (isAccount(x) && !isAccount(d))
+
+
+/**
+ * A current signer d or account x should be authorizedby for legacy roles
+ */
+invariant address_signer_if_authorizedby_legacy(address x, address d) 
+  (x != d && x != 0 && d != 0 &&
+  	(_getAttestationSigner(x) == d || _getVoteSigner(x) == d || _getValidatorSigner(x) == d))
+    	=> (isAccount(x) && _getAuthorizedBy(d) == x)
+
+/**
+ * A current signer d or account x should be authorizedby for new roles
+ */
+invariant address_signer_if_authroizedby_new(address x, address d, bytes32 role)
+	(x != d && x != 0 && d != 0 &&
+		_getDefaultSigner(x,role) == d)
+			=> (isAccount(x) && _getAuthorizedBy(d) == x)
+
+/**
+ * Given account x, address d a current signer, then d can not be a current signer of account y
+ * (Expensive rule)
+ */
+rule address_cant_be_both_authorizedby_of_two_address(address x, address y, address d, bytes32 r1, bytes32 r2, method f) filtered { f -> !f.isView } { 
+	// x and y are accounts d is authorizedby
+	require x != 0 && y != 0 && d != 0 && x != d && y != x && y != d;  
+	// x is not registered or authorized
+	require isAccount(x) && _getAuthorizedBy(d) == x; 
+	// y is not a registered account
+	require isAccount(y); 
+	// d must be a signer of some capacity for x
+	require getIndexedSigner(x, r1) == d; 
+	// d must not be a signer of any capacity for y
+	require getIndexedSigner(y, r2) != d; 
+
+	// Simulate all possible execution of all methods
+	callArbitrary(f);
+
+	// Check that d is still not a current signer of y of any type
+	assert getIndexedSigner(y, r2) != d,
+    	"d must still not be a signer of any capacity for y";
+}
+
+/**
+ * Account x can have two authorized addresses - legacy
+ */
+rule address_can_authorize_two_addresses_legacy(address x, address d1, address d2)
+{ 
+	require x != 0 && d1 != 0 && d2 != 0 && x != d1 && x != d2 && d1 != d2 && isAccount(x); 
+	env e;
+	require e.msg.sender == x;
+  	
+	storage init = lastStorage;
+	// first, authorizing d2 as a validation signer should succeed
+	uint8 v2;
+	bytes32 r2;
+	bytes32 s2;
+	authorizeValidatorSigner(e, d2, v2, r2, s2);  
+
+	// Authorize d1 as a Vote signer (alternative execution path - start from the state where validator authorization started)
+	uint8 v1;
+	bytes32 r1;
+	bytes32 s1;
+	authorizeVoteSigner(e, d1, v1, r1, s1) at init;
+	
+	// Even after authorizing d1, the authorization of d2 as a Validation signer should succeed
+	authorizeValidatorSigner(e, d2, v2, r2, s2);  
+		
+	// AuthorizedBy(d1) and AuthorizedBy(d2) should still be x
+	assert _getAuthorizedBy(d1) == x && _getAuthorizedBy(d2) == x, "Authorizedby should both be x";
+}
+
+/**
+ * Account x can have two authorized addresses - new
+ */
+rule address_can_authorize_two_addresses(address x, address d1, address d2, bytes32 role1, bytes32 role2)
+{ 
+	require x != 0 && d1 != 0 && d2 != 0 && x != d1 && x != d2 && d1 != d2 && isAccount(x); 
+	env e;
+	require e.msg.sender == x;
+  	
+	storage init = lastStorage;
+	// first, authorizing d2 as a validation signer should succeed
+	uint8 v2;
+	bytes32 r2;
+	bytes32 s2;
+	authorizeSignerWithSignature(e, d2, role2, v2, r2, s2);  
+
+	// Authorize d1 as a Vote signer (alternative execution path - start from the state where validator authorization started)
+	uint8 v1;
+	bytes32 r1;
+	bytes32 s1;
+	authorizeSignerWithSignature(e, d1, role1, v1, r1, s1) at init;
+	
+	// Even after authorizing d1, the authorization of d2 as a Validation signer should succeed
+	authorizeSignerWithSignature(e, d2, role2, v2, r2, s2);  
+		
+	// AuthorizedBy(d1) and AuthorizedBy(d2) should still be x
+	assert _getAuthorizedBy(d1) == x && _getAuthorizedBy(d2) == x, "Authorizedby should both be x";
+}
+
+/**
+ * Either the account's authorized signer doesn't change, or it gets set from when it's 0.
+ */
+rule authorizedBy_can_not_be_removed(method f, address signer) filtered { f -> !f.isView } {
+	address _account = _getAuthorizedBy(signer); 
+	callArbitrary(f);
+	address account_ = _getAuthorizedBy(signer); 
+	// Whatever transacation occurs, if `_account` was authorized before, it remains authorized.
+  	// If `_account` was null, then we could authorize a new account `account_`.
+	assert _account == account_ || _account == 0, 
+		"Account delegating to $signer cannot change from one non-zero value to another non-zero value";
+}
+
+/**
+ * A second call to initialize must fail
+ */
+rule initializableOnlyOnce {
+	env e;
+	calldataarg arg;
+	initialize(e, arg);
+
+	env e2;
+	calldataarg arg2;
+	initialize@withrevert(e2, arg2);
+	assert lastReverted;
+}
+
+/**
+ * Only `createAccount` should be creating an account
+ */
+rule createsAccount(method f, address a) filtered { f ->
+	!f.isView
+		&& f.selector != createAccount().selector
+		&& f.selector != setAccount(string,bytes,address,uint8,bytes32,bytes32).selector
+} {
+	bool _isAccount = isAccount(a);
+	callArbitrary(f);
+	bool isAccount_ = isAccount(a);
+
+	assert _isAccount == isAccount_, "checked function creates an account";
+}
+
+/**
+ * A legacy role should never be set in default signers indexing map (because we have direct struct access in storage)
+ */
+invariant legacyRolesAreNotUsedInNewRoles(address account, bytes32 role) 
+	isLegacyRole(role) => _getDefaultSigner(account, role) == 0
+
+/**
+ * view functions in general should not revert.
+ * Some exceptions and more refined revert-characteristics are provided.
+ */
+rule viewFunctionsDoNotRevert(method f) filtered { f -> 
+	f.isView 
+	// some functions we ignore, and the reasons:
+	&& f.selector != hasAuthorizedSigner(address,string).selector // Calldatasize may not match
+	&& f.selector != batchGetMetadataURL(address[]).selector // Calldatasize may not match
+} {
+	env e;
+	require e.msg.value == 0; // view functions are not payable
+	
+	// functions that require special handling:
+	if (f.selector == getLegacySigner(address,bytes32).selector) {
+		// getLegacySigner requires getting a legacy role
+		address a;
+		bytes32 r;
+		require isLegacyRole(r);
+		getLegacySigner@withrevert(a, r);
+	} else if (f.selector == hasLegacySigner(address,bytes32).selector) {
+		// hasLegacySigner requires getting a legacy role
+		address a;
+		bytes32 r;
+		require isLegacyRole(r);
+		hasLegacySigner@withrevert(e, a, r);
+	} else if (f.selector == signerToAccount(address).selector) {
+		// will fail if address is not authorized by anyone, and is not an account.
+		address a;
+		require _getAuthorizedBy(a) != 0 || isAccount(a);
+		signerToAccount@withrevert(a);
+	} else if (f.selector == voteSignerToAccount(address).selector) {
+		address a;
+		address authBy = _getAuthorizedBy(a);
+		requireInvariant authorizedByIsNeverReflexive(a);
+		require (authBy != 0 && isSigner(authBy, a, _getVoteRole())) || (authBy == 0 && isAccount(a));
+		voteSignerToAccount@withrevert(a);
+	} else if (f.selector == validatorSignerToAccount(address).selector) {
+		address a;
+		address authBy = _getAuthorizedBy(a);
+		requireInvariant authorizedByIsNeverReflexive(a);
+		require (authBy != 0 && isSigner(authBy, a, _getValidatorRole())) || (authBy == 0 && isAccount(a));
+		validatorSignerToAccount@withrevert(a);
+	} else if (f.selector == attestationSignerToAccount(address).selector) {
+		address a;
+		address authBy = _getAuthorizedBy(a);
+		requireInvariant authorizedByIsNeverReflexive(a);
+		require (authBy != 0 && isSigner(authBy, a, _getAttestationRole())) || (authBy == 0 && isAccount(a));
+		attestationSignerToAccount@withrevert(a);
+	} else {
+		calldataarg arg;
+		f@withrevert(e, arg);
+	}
+
+	assert !lastReverted, "View functions should not revert";
+}
+
+/**
+ * the authorizedBy should never be reflexive, i.e. an account cannot be its own signer, or a signer cannot be authroize itself.
+ */
+invariant authorizedByIsNeverReflexive(address a)
+	a != 0 => _getAuthorizedBy(a) != a
+
+/**
+ * If we set signerAuthroization to be completed, it means the signer is marked as authorizedBy the account.
+ * The other direction may not be correct because authorizedBy is persistent while signer authorizations can be removed. 
+ */
+invariant mustHaveAuthorizedByIfCompletedSignerAuthorization(address account, bytes32 role, address signer) 
+	account != 0 => (isCompletedSignerAuthorization(account, role, signer) => _getAuthorizedBy(signer) == account)
+
+/**
+ * For signerAuthorization, a signer can only appear as a signer of a single account.
+ */
+invariant noMultipleAccountsPerSignerInARole(address account, address account2, bytes32 role, bytes32 role2, address signer)
+	account != 0 && account2 != 0
+		=> (isCompletedSignerAuthorization(account, role, signer) && isCompletedSignerAuthorization(account2, role2, signer) 
+			=> account == account2) {
+	
+	preserved {
+		requireInvariant completedSignerAuthMeansAuthByIsSet(account, role, signer);
+		requireInvariant completedSignerAuthMeansAuthByIsSet(account2, role2, signer);
+	}
+}
+
+/**
+ * Only legacy roles allow to jump from no signer authorization being started, to being completed, in one single invocation.
+ */
+rule cantGoFromNoAuthorizationToCompletedInOneStepUnlessRoleIsLegacy(method f) filtered { f -> 
+	!f.isView 
+		// the authorizeSignerWithSignature allows the signer to provide a signature to the account, so we exclude this option
+		&& f.selector != authorizeSignerWithSignature(address,bytes32,uint8,bytes32,bytes32).selector
+} {
+	address account;
+	bytes32 role;
+	address signer;
+	require !isStartedSignerAuthorization(account, role, signer) && !isCompletedSignerAuthorization(account, role, signer);
+
+	callArbitrary(f);
+
+	assert isCompletedSignerAuthorization(account, role, signer) => isLegacyRole(role);
+}
+
+/**
+ * One cannot complete the signer authorization process unless the signer itself signs on the transaction,
+ * or the signer provided a signature.
+ */
+rule cantMakeASignerForNonLegacyRoleWithoutApprovalOfSigner(method f) filtered { f -> 
+	!f.isView 
+		// the authorizeSignerWithSignature allows the signer to provide a signature to the account, so we exclude this option
+		&& f.selector != authorizeSignerWithSignature(address,bytes32,uint8,bytes32,bytes32).selector	
+} {
+	address account;
+	bytes32 role;
+	
+	// Leagcy roles can be updated using a signature
+	require !isLegacyRole(role);
+
+	address signer;
+
+	// not completed signer auth yet (but may have started)
+	require !isCompletedSignerAuthorization(account, role, signer);
+
+	env e;
+	calldataarg arg;
+	f(e, arg);
+
+	assert isCompletedSignerAuthorization(account, role, signer) => e.msg.sender == signer;
+}
+
+/**
+ * One cannot start a signer authorization on behalf of another account.
+ */
+rule cannotStartSignerAuthorizationsForOtherAccounts(method f) filtered { f -> !f.isView } {
+	address account;
+	bytes32 role;
+	address signer;
+	require !isStartedSignerAuthorization(account, role, signer);
+
+	env e;
+	calldataarg arg;
+	f(e,arg);
+
+	assert isStartedSignerAuthorization(account, role, signer) => e.msg.sender == account;
+}
+
+/**
+ * The only way authorizedBy should be set is using a signature, or by the signer being the caller
+ */
+rule cannotSetAuthorizedByWithoutSignatures(method f) filtered { f -> 
+	!f.isView 
+		&& f.selector != authorizeSignerWithSignature(address,bytes32,uint8,bytes32,bytes32).selector
+		&& f.selector != authorizeAttestationSigner(address,uint8,bytes32,bytes32).selector
+		&& f.selector != authorizeValidatorSigner(address,uint8,bytes32,bytes32).selector
+		&& f.selector != authorizeValidatorSignerWithKeys(address,uint8,bytes32,bytes32,bytes,bytes,bytes).selector
+		&& f.selector != authorizeValidatorSignerWithPublicKey(address,uint8,bytes32,bytes32,bytes).selector
+		&& f.selector != authorizeVoteSigner(address,uint8,bytes32,bytes32).selector
+} {
+	address d;
+	require _getAuthorizedBy(d) == 0;
+
+	env e;
+	calldataarg arg;
+	f(e, arg);
+
+	assert _getAuthorizedBy(d) == 0 || e.msg.sender == d;
+} 
+
+/**
+ * Conditions for being able to change signerAuthorization
+ */
+rule signerAuthorizationChangePrivileges(address a, bytes32 r, address s, method f) filtered { f ->
+	!f.isView 
+} {
+	bool _started = isStartedSignerAuthorization(a, r, s);
+	bool _completed = isCompletedSignerAuthorization(a, r, s);
+
+	env e;
+	calldataarg arg;
+	f(e, arg);
+
+	bool started_ = isStartedSignerAuthorization(a, r, s);
+	bool completed_ = isCompletedSignerAuthorization(a, r, s);
+	assert _started != started_ => e.msg.sender == a, "Only account can start a signer authorization";
+	assert _completed && !completed_ => e.msg.sender == a, "Only account can remove a signer authorization";
+	assert !_completed && completed_ => e.msg.sender == a || e.msg.sender == s, "Only signer or account can complete a signer authorization";
+} 
+
+/**
+ * There's no contents to the fallback function
+ */
+rule check_no_fallback {
+	env e;
+	calldataarg arg;
+	invoke_fallback(e, arg);
+
+	assert lastReverted;
+}
+
+/**
+ * The values of get*Signer getters should be consistent for all roles.
+ */
+rule gettersInAgreement() {
+	address account;
+	require account != 0;
+	bytes32 role;
+	address indexedSigner = getIndexedSigner(account, role);
+	address defaultSigner = getDefaultSigner(account, role);
+	address legacySigner = getLegacySigner(account, role);
+	address voteSigner = getVoteSigner(account);
+	address validatorSigner = getValidatorSigner(account);
+	address attestationSigner = getAttestationSigner(account);
+
+	if (role == _getVoteRole()) {
+		assert indexedSigner == legacySigner && indexedSigner == voteSigner, "indexed signer agrees with legacy signer for vote role";
+	} else if (role == _getValidatorRole()) {
+		assert indexedSigner == legacySigner && indexedSigner == validatorSigner, "indexed signer agrees with legacy signer for validator role";
+	} else if (role == _getAttestationRole()) {
+		assert indexedSigner == legacySigner && indexedSigner == attestationSigner, "indexed signer agrees with legacy signer for attestation role";
+	} else {
+		assert indexedSigner == defaultSigner, "for any non legacy role indexed signer is default signer";
+	}
+
+	assert indexedSigner != 0 && defaultSigner != 0 && legacySigner != 0 
+		&& voteSigner != 0 && validatorSigner != 0 && attestationSigner != 0, "signer is never address 0";
+
+	// original assertion is wrong
+	//assert indexedSigner != account => defaultSigner != account, "If indexed signer is a distinct address then default signer for this role is also a distinct address";
+	assert !isLegacyRole(role) && indexedSigner != account => defaultSigner != account, "If indexed signer is a distinct address then default signer for this role is also a distinct address";
+}
+
+/**
+ * account to signer and signer to account getters should agree
+ */
+invariant accountToSignerAndInverseVote(address a, address s, bytes32 r)
+	r == _getVoteRole() => (s == getVoteSigner(a) => voteSignerToAccount(s) == a)
+{
+		preserved {
+			require a != s;
+		}
+}
+
+invariant accountToSignerAndInverseValidator(address a, address s, bytes32 r)	
+	r == _getValidatorRole() => (s == getValidatorSigner(a) => validatorSignerToAccount(s) == a)
+{
+		preserved {
+			require a != s;
+		}
+}
+
+invariant accountToSignerAndInverseAttestation(address a, address s, bytes32 r)
+	r == _getAttestationRole() => (s == getAttestationSigner(a) => attestationSignerToAccount(s) == a)
+{
+		preserved {
+			require a != s;
+		}
+}
+
+invariant accountToSignerAndInverseNewRoles(address a, address s, bytes32 r)	
+	getIndexedSigner(a, r) == s => signerToAccount(s) == a 
+{
+		preserved {
+			require a != s;
+		}
+}
+
+
+/**
+ * A utility for shortening calls to arbitrary functions in which we do not care about the environment.
+ */
+function callArbitrary(method f) {
+	env e;
+	calldataarg arg;
+	f(e, arg);
+}
+
+----------------------------------------------------
+
+[
+	["keyword", "methods"],
+	["punctuation", "{"],
+
+	["function", "isAccount"],
+	["punctuation", "("],
+	["builtin", "address"],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "bool"],
+	["keyword", "envfree"],
+
+	["function", "isSigner"],
+	["punctuation", "("],
+	["builtin", "address"],
+	["punctuation", ","],
+	["builtin", "address"],
+	["punctuation", ","],
+	["builtin", "bytes32"],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "bool"],
+	["keyword", "envfree"],
+	["comment", "// account, signer, role"],
+
+	["function", "_getAuthorizedBy"],
+	["punctuation", "("],
+	["builtin", "address"],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "address"],
+	["keyword", "envfree"],
+
+	["function", "_getDataEncryptionKeyLen"],
+	["punctuation", "("],
+	["builtin", "address"],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "uint256"],
+
+	["function", "_getNameLen"],
+	["punctuation", "("],
+	["builtin", "address"],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "uint256"],
+
+	["function", "getWalletAddress"],
+	["punctuation", "("],
+	["builtin", "address"],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "address"],
+	["keyword", "envfree"],
+
+	["function", "getAttestationSigner"],
+	["punctuation", "("],
+	["builtin", "address"],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "address"],
+	["keyword", "envfree"],
+
+	["function", "_getAttestationSigner"],
+	["punctuation", "("],
+	["builtin", "address"],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "address"],
+	["keyword", "envfree"],
+
+	["function", "getVoteSigner"],
+	["punctuation", "("],
+	["builtin", "address"],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "address"],
+	["keyword", "envfree"],
+
+	["function", "_getVoteSigner"],
+	["punctuation", "("],
+	["builtin", "address"],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "address"],
+	["keyword", "envfree"],
+
+	["function", "getValidatorSigner"],
+	["punctuation", "("],
+	["builtin", "address"],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "address"],
+	["keyword", "envfree"],
+
+	["function", "_getValidatorSigner"],
+	["punctuation", "("],
+	["builtin", "address"],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "address"],
+	["keyword", "envfree"],
+
+	["function", "getDefaultSigner"],
+	["punctuation", "("],
+	["builtin", "address"],
+	["punctuation", ","],
+	["builtin", "bytes32"],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "address"],
+	["keyword", "envfree"],
+
+	["function", "_getDefaultSigner"],
+	["punctuation", "("],
+	["builtin", "address"],
+	["punctuation", ","],
+	["builtin", "bytes32"],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "address"],
+	["keyword", "envfree"],
+
+	["function", "getLegacySigner"],
+	["punctuation", "("],
+	["builtin", "address"],
+	["punctuation", ","],
+	["builtin", "bytes32"],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "address"],
+	["keyword", "envfree"],
+
+	["function", "isLegacyRole"],
+	["punctuation", "("],
+	["builtin", "bytes32"],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "bool"],
+	["keyword", "envfree"],
+
+	["function", "isCompletedSignerAuthorization"],
+	["punctuation", "("],
+	["builtin", "address"],
+	["punctuation", ","],
+	["builtin", "bytes32"],
+	["punctuation", ","],
+	["builtin", "address"],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "bool"],
+	["keyword", "envfree"],
+
+	["function", "isStartedSignerAuthorization"],
+	["punctuation", "("],
+	["builtin", "address"],
+	["punctuation", ","],
+	["builtin", "bytes32"],
+	["punctuation", ","],
+	["builtin", "address"],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "bool"],
+	["keyword", "envfree"],
+
+	["function", "voteSignerToAccount"],
+	["punctuation", "("],
+	["builtin", "address"],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "address"],
+	["keyword", "envfree"],
+
+	["function", "validatorSignerToAccount"],
+	["punctuation", "("],
+	["builtin", "address"],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "address"],
+	["keyword", "envfree"],
+
+	["function", "attestationSignerToAccount"],
+	["punctuation", "("],
+	["builtin", "address"],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "address"],
+	["keyword", "envfree"],
+
+	["function", "signerToAccount"],
+	["punctuation", "("],
+	["builtin", "address"],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "address"],
+	["keyword", "envfree"],
+
+	["function", "_getValidatorRole"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "bytes32"],
+	["keyword", "envfree"],
+
+	["function", "_getAttestationRole"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "bytes32"],
+	["keyword", "envfree"],
+
+	["function", "_getVoteRole"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "bytes32"],
+	["keyword", "envfree"],
+
+	["function", "getIndexedSigner"],
+	["punctuation", "("],
+	["builtin", "address"],
+	["punctuation", ","],
+	["builtin", "bytes32"],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "address"],
+	["keyword", "envfree"],
+
+	["punctuation", "}"],
+
+	["comment", "/**\n * If an address x is not an account then all mapping from x should be empty\n */"],
+
+	["keyword", "invariant"],
+	["class-name", "account_empty_if_not_exist"],
+	["punctuation", "("],
+	["builtin", "env"],
+	" e",
+	["punctuation", ","],
+	["builtin", "address"],
+	" x",
+	["punctuation", ")"],
+
+	["operator", "!"],
+	["function", "isAccount"],
+	["punctuation", "("],
+	"x",
+	["punctuation", ")"],
+	["operator", "="],
+	["operator", ">"],
+
+	["function", "getWalletAddress"],
+	["punctuation", "("],
+	"x",
+	["punctuation", ")"],
+	["operator", "=="],
+	["number", "0"],
+	["operator", "&&"],
+
+	["function", "_getAttestationSigner"],
+	["punctuation", "("],
+	"x",
+	["punctuation", ")"],
+	["operator", "=="],
+	["number", "0"],
+	["operator", "&&"],
+
+	["function", "_getVoteSigner"],
+	["punctuation", "("],
+	"x",
+	["punctuation", ")"],
+	["operator", "=="],
+	["number", "0"],
+	["operator", "&&"],
+
+	["function", "_getValidatorSigner"],
+	["punctuation", "("],
+	"x",
+	["punctuation", ")"],
+	["operator", "=="],
+	["number", "0"],
+
+	["comment", "/**\n * An address d that is authorized by some account x can not become an account\n */"],
+
+	["keyword", "invariant"],
+	["class-name", "address_cant_be_both_account_and_signer"],
+	["punctuation", "("],
+	["builtin", "address"],
+	" x",
+	["punctuation", ","],
+	["builtin", "address"],
+	" d",
+	["punctuation", ")"],
+
+	["punctuation", "("],
+	"x ",
+	["operator", "!="],
+	["number", "0"],
+	["operator", "&&"],
+	" d ",
+	["operator", "!="],
+	["number", "0"],
+	["operator", "&&"],
+	" x ",
+	["operator", "!="],
+	" d ",
+	["operator", "&&"],
+	["function", "_getAuthorizedBy"],
+	["punctuation", "("],
+	"d",
+	["punctuation", ")"],
+	["operator", "=="],
+	" x",
+	["punctuation", ")"],
+	["operator", "="],
+	["operator", ">"],
+
+	["punctuation", "("],
+	["function", "isAccount"],
+	["punctuation", "("],
+	"x",
+	["punctuation", ")"],
+	["operator", "&&"],
+	["operator", "!"],
+	["function", "isAccount"],
+	["punctuation", "("],
+	"d",
+	["punctuation", ")"],
+	["punctuation", ")"],
+
+	["comment", "/**\n * A current signer d or account x should be authorizedby for legacy roles\n */"],
+
+	["keyword", "invariant"],
+	["class-name", "address_signer_if_authorizedby_legacy"],
+	["punctuation", "("],
+	["builtin", "address"],
+	" x",
+	["punctuation", ","],
+	["builtin", "address"],
+	" d",
+	["punctuation", ")"],
+
+	["punctuation", "("],
+	"x ",
+	["operator", "!="],
+	" d ",
+	["operator", "&&"],
+	" x ",
+	["operator", "!="],
+	["number", "0"],
+	["operator", "&&"],
+	" d ",
+	["operator", "!="],
+	["number", "0"],
+	["operator", "&&"],
+
+	["punctuation", "("],
+	["function", "_getAttestationSigner"],
+	["punctuation", "("],
+	"x",
+	["punctuation", ")"],
+	["operator", "=="],
+	" d ",
+	["operator", "||"],
+	["function", "_getVoteSigner"],
+	["punctuation", "("],
+	"x",
+	["punctuation", ")"],
+	["operator", "=="],
+	" d ",
+	["operator", "||"],
+	["function", "_getValidatorSigner"],
+	["punctuation", "("],
+	"x",
+	["punctuation", ")"],
+	["operator", "=="],
+	" d",
+	["punctuation", ")"],
+	["punctuation", ")"],
+
+	["operator", "="],
+	["operator", ">"],
+	["punctuation", "("],
+	["function", "isAccount"],
+	["punctuation", "("],
+	"x",
+	["punctuation", ")"],
+	["operator", "&&"],
+	["function", "_getAuthorizedBy"],
+	["punctuation", "("],
+	"d",
+	["punctuation", ")"],
+	["operator", "=="],
+	" x",
+	["punctuation", ")"],
+
+	["comment", "/**\n * A current signer d or account x should be authorizedby for new roles\n */"],
+
+	["keyword", "invariant"],
+	["class-name", "address_signer_if_authroizedby_new"],
+	["punctuation", "("],
+	["builtin", "address"],
+	" x",
+	["punctuation", ","],
+	["builtin", "address"],
+	" d",
+	["punctuation", ","],
+	["builtin", "bytes32"],
+	" role",
+	["punctuation", ")"],
+
+	["punctuation", "("],
+	"x ",
+	["operator", "!="],
+	" d ",
+	["operator", "&&"],
+	" x ",
+	["operator", "!="],
+	["number", "0"],
+	["operator", "&&"],
+	" d ",
+	["operator", "!="],
+	["number", "0"],
+	["operator", "&&"],
+
+	["function", "_getDefaultSigner"],
+	["punctuation", "("],
+	"x",
+	["punctuation", ","],
+	"role",
+	["punctuation", ")"],
+	["operator", "=="],
+	" d",
+	["punctuation", ")"],
+
+	["operator", "="],
+	["operator", ">"],
+	["punctuation", "("],
+	["function", "isAccount"],
+	["punctuation", "("],
+	"x",
+	["punctuation", ")"],
+	["operator", "&&"],
+	["function", "_getAuthorizedBy"],
+	["punctuation", "("],
+	"d",
+	["punctuation", ")"],
+	["operator", "=="],
+	" x",
+	["punctuation", ")"],
+
+	["comment", "/**\n * Given account x, address d a current signer, then d can not be a current signer of account y\n * (Expensive rule)\n */"],
+
+	["keyword", "rule"],
+	["class-name", "address_cant_be_both_authorizedby_of_two_address"],
+	["punctuation", "("],
+	["builtin", "address"],
+	" x",
+	["punctuation", ","],
+	["builtin", "address"],
+	" y",
+	["punctuation", ","],
+	["builtin", "address"],
+	" d",
+	["punctuation", ","],
+	["builtin", "bytes32"],
+	" r1",
+	["punctuation", ","],
+	["builtin", "bytes32"],
+	" r2",
+	["punctuation", ","],
+	["builtin", "method"],
+	" f",
+	["punctuation", ")"],
+	["keyword", "filtered"],
+	["punctuation", "{"],
+	" f ",
+	["operator", "-"],
+	["operator", ">"],
+	["operator", "!"],
+	"f",
+	["punctuation", "."],
+	"isView ",
+	["punctuation", "}"],
+	["punctuation", "{"],
+
+	["comment", "// x and y are accounts d is authorizedby"],
+
+	["keyword", "require"],
+	" x ",
+	["operator", "!="],
+	["number", "0"],
+	["operator", "&&"],
+	" y ",
+	["operator", "!="],
+	["number", "0"],
+	["operator", "&&"],
+	" d ",
+	["operator", "!="],
+	["number", "0"],
+	["operator", "&&"],
+	" x ",
+	["operator", "!="],
+	" d ",
+	["operator", "&&"],
+	" y ",
+	["operator", "!="],
+	" x ",
+	["operator", "&&"],
+	" y ",
+	["operator", "!="],
+	" d",
+	["punctuation", ";"],
+
+	["comment", "// x is not registered or authorized"],
+
+	["keyword", "require"],
+	["function", "isAccount"],
+	["punctuation", "("],
+	"x",
+	["punctuation", ")"],
+	["operator", "&&"],
+	["function", "_getAuthorizedBy"],
+	["punctuation", "("],
+	"d",
+	["punctuation", ")"],
+	["operator", "=="],
+	" x",
+	["punctuation", ";"],
+
+	["comment", "// y is not a registered account"],
+
+	["keyword", "require"],
+	["function", "isAccount"],
+	["punctuation", "("],
+	"y",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["comment", "// d must be a signer of some capacity for x"],
+
+	["keyword", "require"],
+	["function", "getIndexedSigner"],
+	["punctuation", "("],
+	"x",
+	["punctuation", ","],
+	" r1",
+	["punctuation", ")"],
+	["operator", "=="],
+	" d",
+	["punctuation", ";"],
+
+	["comment", "// d must not be a signer of any capacity for y"],
+
+	["keyword", "require"],
+	["function", "getIndexedSigner"],
+	["punctuation", "("],
+	"y",
+	["punctuation", ","],
+	" r2",
+	["punctuation", ")"],
+	["operator", "!="],
+	" d",
+	["punctuation", ";"],
+
+	["comment", "// Simulate all possible execution of all methods"],
+
+	["function", "callArbitrary"],
+	["punctuation", "("],
+	"f",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["comment", "// Check that d is still not a current signer of y of any type"],
+
+	["keyword", "assert"],
+	["function", "getIndexedSigner"],
+	["punctuation", "("],
+	"y",
+	["punctuation", ","],
+	" r2",
+	["punctuation", ")"],
+	["operator", "!="],
+	" d",
+	["punctuation", ","],
+
+	["string", "\"d must still not be a signer of any capacity for y\""],
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["comment", "/**\n * Account x can have two authorized addresses - legacy\n */"],
+
+	["keyword", "rule"],
+	["class-name", "address_can_authorize_two_addresses_legacy"],
+	["punctuation", "("],
+	["builtin", "address"],
+	" x",
+	["punctuation", ","],
+	["builtin", "address"],
+	" d1",
+	["punctuation", ","],
+	["builtin", "address"],
+	" d2",
+	["punctuation", ")"],
+
+	["punctuation", "{"],
+
+	["keyword", "require"],
+	" x ",
+	["operator", "!="],
+	["number", "0"],
+	["operator", "&&"],
+	" d1 ",
+	["operator", "!="],
+	["number", "0"],
+	["operator", "&&"],
+	" d2 ",
+	["operator", "!="],
+	["number", "0"],
+	["operator", "&&"],
+	" x ",
+	["operator", "!="],
+	" d1 ",
+	["operator", "&&"],
+	" x ",
+	["operator", "!="],
+	" d2 ",
+	["operator", "&&"],
+	" d1 ",
+	["operator", "!="],
+	" d2 ",
+	["operator", "&&"],
+	["function", "isAccount"],
+	["punctuation", "("],
+	"x",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["builtin", "env"],
+	" e",
+	["punctuation", ";"],
+
+	["keyword", "require"],
+	" e",
+	["punctuation", "."],
+	"msg",
+	["punctuation", "."],
+	"sender ",
+	["operator", "=="],
+	" x",
+	["punctuation", ";"],
+
+	["builtin", "storage"],
+	" init ",
+	["operator", "="],
+	["keyword", "lastStorage"],
+	["punctuation", ";"],
+
+	["comment", "// first, authorizing d2 as a validation signer should succeed"],
+
+	["builtin", "uint8"],
+	" v2",
+	["punctuation", ";"],
+
+	["builtin", "bytes32"],
+	" r2",
+	["punctuation", ";"],
+
+	["builtin", "bytes32"],
+	" s2",
+	["punctuation", ";"],
+
+	["function", "authorizeValidatorSigner"],
+	["punctuation", "("],
+	"e",
+	["punctuation", ","],
+	" d2",
+	["punctuation", ","],
+	" v2",
+	["punctuation", ","],
+	" r2",
+	["punctuation", ","],
+	" s2",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["comment", "// Authorize d1 as a Vote signer (alternative execution path - start from the state where validator authorization started)"],
+
+	["builtin", "uint8"],
+	" v1",
+	["punctuation", ";"],
+
+	["builtin", "bytes32"],
+	" r1",
+	["punctuation", ";"],
+
+	["builtin", "bytes32"],
+	" s1",
+	["punctuation", ";"],
+
+	["function", "authorizeVoteSigner"],
+	["punctuation", "("],
+	"e",
+	["punctuation", ","],
+	" d1",
+	["punctuation", ","],
+	" v1",
+	["punctuation", ","],
+	" r1",
+	["punctuation", ","],
+	" s1",
+	["punctuation", ")"],
+	["keyword", "at"],
+	" init",
+	["punctuation", ";"],
+
+	["comment", "// Even after authorizing d1, the authorization of d2 as a Validation signer should succeed"],
+
+	["function", "authorizeValidatorSigner"],
+	["punctuation", "("],
+	"e",
+	["punctuation", ","],
+	" d2",
+	["punctuation", ","],
+	" v2",
+	["punctuation", ","],
+	" r2",
+	["punctuation", ","],
+	" s2",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["comment", "// AuthorizedBy(d1) and AuthorizedBy(d2) should still be x"],
+
+	["keyword", "assert"],
+	["function", "_getAuthorizedBy"],
+	["punctuation", "("],
+	"d1",
+	["punctuation", ")"],
+	["operator", "=="],
+	" x ",
+	["operator", "&&"],
+	["function", "_getAuthorizedBy"],
+	["punctuation", "("],
+	"d2",
+	["punctuation", ")"],
+	["operator", "=="],
+	" x",
+	["punctuation", ","],
+	["string", "\"Authorizedby should both be x\""],
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["comment", "/**\n * Account x can have two authorized addresses - new\n */"],
+
+	["keyword", "rule"],
+	["class-name", "address_can_authorize_two_addresses"],
+	["punctuation", "("],
+	["builtin", "address"],
+	" x",
+	["punctuation", ","],
+	["builtin", "address"],
+	" d1",
+	["punctuation", ","],
+	["builtin", "address"],
+	" d2",
+	["punctuation", ","],
+	["builtin", "bytes32"],
+	" role1",
+	["punctuation", ","],
+	["builtin", "bytes32"],
+	" role2",
+	["punctuation", ")"],
+
+	["punctuation", "{"],
+
+	["keyword", "require"],
+	" x ",
+	["operator", "!="],
+	["number", "0"],
+	["operator", "&&"],
+	" d1 ",
+	["operator", "!="],
+	["number", "0"],
+	["operator", "&&"],
+	" d2 ",
+	["operator", "!="],
+	["number", "0"],
+	["operator", "&&"],
+	" x ",
+	["operator", "!="],
+	" d1 ",
+	["operator", "&&"],
+	" x ",
+	["operator", "!="],
+	" d2 ",
+	["operator", "&&"],
+	" d1 ",
+	["operator", "!="],
+	" d2 ",
+	["operator", "&&"],
+	["function", "isAccount"],
+	["punctuation", "("],
+	"x",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["builtin", "env"],
+	" e",
+	["punctuation", ";"],
+
+	["keyword", "require"],
+	" e",
+	["punctuation", "."],
+	"msg",
+	["punctuation", "."],
+	"sender ",
+	["operator", "=="],
+	" x",
+	["punctuation", ";"],
+
+	["builtin", "storage"],
+	" init ",
+	["operator", "="],
+	["keyword", "lastStorage"],
+	["punctuation", ";"],
+
+	["comment", "// first, authorizing d2 as a validation signer should succeed"],
+
+	["builtin", "uint8"],
+	" v2",
+	["punctuation", ";"],
+
+	["builtin", "bytes32"],
+	" r2",
+	["punctuation", ";"],
+
+	["builtin", "bytes32"],
+	" s2",
+	["punctuation", ";"],
+
+	["function", "authorizeSignerWithSignature"],
+	["punctuation", "("],
+	"e",
+	["punctuation", ","],
+	" d2",
+	["punctuation", ","],
+	" role2",
+	["punctuation", ","],
+	" v2",
+	["punctuation", ","],
+	" r2",
+	["punctuation", ","],
+	" s2",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["comment", "// Authorize d1 as a Vote signer (alternative execution path - start from the state where validator authorization started)"],
+
+	["builtin", "uint8"],
+	" v1",
+	["punctuation", ";"],
+
+	["builtin", "bytes32"],
+	" r1",
+	["punctuation", ";"],
+
+	["builtin", "bytes32"],
+	" s1",
+	["punctuation", ";"],
+
+	["function", "authorizeSignerWithSignature"],
+	["punctuation", "("],
+	"e",
+	["punctuation", ","],
+	" d1",
+	["punctuation", ","],
+	" role1",
+	["punctuation", ","],
+	" v1",
+	["punctuation", ","],
+	" r1",
+	["punctuation", ","],
+	" s1",
+	["punctuation", ")"],
+	["keyword", "at"],
+	" init",
+	["punctuation", ";"],
+
+	["comment", "// Even after authorizing d1, the authorization of d2 as a Validation signer should succeed"],
+
+	["function", "authorizeSignerWithSignature"],
+	["punctuation", "("],
+	"e",
+	["punctuation", ","],
+	" d2",
+	["punctuation", ","],
+	" role2",
+	["punctuation", ","],
+	" v2",
+	["punctuation", ","],
+	" r2",
+	["punctuation", ","],
+	" s2",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["comment", "// AuthorizedBy(d1) and AuthorizedBy(d2) should still be x"],
+
+	["keyword", "assert"],
+	["function", "_getAuthorizedBy"],
+	["punctuation", "("],
+	"d1",
+	["punctuation", ")"],
+	["operator", "=="],
+	" x ",
+	["operator", "&&"],
+	["function", "_getAuthorizedBy"],
+	["punctuation", "("],
+	"d2",
+	["punctuation", ")"],
+	["operator", "=="],
+	" x",
+	["punctuation", ","],
+	["string", "\"Authorizedby should both be x\""],
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["comment", "/**\n * Either the account's authorized signer doesn't change, or it gets set from when it's 0.\n */"],
+
+	["keyword", "rule"],
+	["class-name", "authorizedBy_can_not_be_removed"],
+	["punctuation", "("],
+	["builtin", "method"],
+	" f",
+	["punctuation", ","],
+	["builtin", "address"],
+	" signer",
+	["punctuation", ")"],
+	["keyword", "filtered"],
+	["punctuation", "{"],
+	" f ",
+	["operator", "-"],
+	["operator", ">"],
+	["operator", "!"],
+	"f",
+	["punctuation", "."],
+	"isView ",
+	["punctuation", "}"],
+	["punctuation", "{"],
+
+	["builtin", "address"],
+	" _account ",
+	["operator", "="],
+	["function", "_getAuthorizedBy"],
+	["punctuation", "("],
+	"signer",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["function", "callArbitrary"],
+	["punctuation", "("],
+	"f",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["builtin", "address"],
+	" account_ ",
+	["operator", "="],
+	["function", "_getAuthorizedBy"],
+	["punctuation", "("],
+	"signer",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["comment", "// Whatever transacation occurs, if `_account` was authorized before, it remains authorized."],
+
+	["comment", "// If `_account` was null, then we could authorize a new account `account_`."],
+
+	["keyword", "assert"],
+	" _account ",
+	["operator", "=="],
+	" account_ ",
+	["operator", "||"],
+	" _account ",
+	["operator", "=="],
+	["number", "0"],
+	["punctuation", ","],
+
+	["string", "\"Account delegating to $signer cannot change from one non-zero value to another non-zero value\""],
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["comment", "/**\n * A second call to initialize must fail\n */"],
+
+	["keyword", "rule"],
+	["class-name", "initializableOnlyOnce"],
+	["punctuation", "{"],
+
+	["builtin", "env"],
+	" e",
+	["punctuation", ";"],
+
+	["builtin", "calldataarg"],
+	" arg",
+	["punctuation", ";"],
+
+	["function", "initialize"],
+	["punctuation", "("],
+	"e",
+	["punctuation", ","],
+	" arg",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["builtin", "env"],
+	" e2",
+	["punctuation", ";"],
+
+	["builtin", "calldataarg"],
+	" arg2",
+	["punctuation", ";"],
+
+	"\n\tinitialize",
+	["keyword", "@withrevert"],
+	["punctuation", "("],
+	"e2",
+	["punctuation", ","],
+	" arg2",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "assert"],
+	["keyword", "lastReverted"],
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["comment", "/**\n * Only `createAccount` should be creating an account\n */"],
+
+	["keyword", "rule"],
+	["class-name", "createsAccount"],
+	["punctuation", "("],
+	["builtin", "method"],
+	" f",
+	["punctuation", ","],
+	["builtin", "address"],
+	" a",
+	["punctuation", ")"],
+	["keyword", "filtered"],
+	["punctuation", "{"],
+	" f ",
+	["operator", "-"],
+	["operator", ">"],
+
+	["operator", "!"],
+	"f",
+	["punctuation", "."],
+	"isView\n\t\t",
+
+	["operator", "&&"],
+	" f",
+	["punctuation", "."],
+	"selector ",
+	["operator", "!="],
+	["function", "createAccount"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["punctuation", "."],
+	"selector\n\t\t",
+
+	["operator", "&&"],
+	" f",
+	["punctuation", "."],
+	"selector ",
+	["operator", "!="],
+	["function", "setAccount"],
+	["punctuation", "("],
+	["builtin", "string"],
+	["punctuation", ","],
+	["builtin", "bytes"],
+	["punctuation", ","],
+	["builtin", "address"],
+	["punctuation", ","],
+	["builtin", "uint8"],
+	["punctuation", ","],
+	["builtin", "bytes32"],
+	["punctuation", ","],
+	["builtin", "bytes32"],
+	["punctuation", ")"],
+	["punctuation", "."],
+	"selector\n",
+
+	["punctuation", "}"],
+	["punctuation", "{"],
+
+	["builtin", "bool"],
+	" _isAccount ",
+	["operator", "="],
+	["function", "isAccount"],
+	["punctuation", "("],
+	"a",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["function", "callArbitrary"],
+	["punctuation", "("],
+	"f",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["builtin", "bool"],
+	" isAccount_ ",
+	["operator", "="],
+	["function", "isAccount"],
+	["punctuation", "("],
+	"a",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "assert"],
+	" _isAccount ",
+	["operator", "=="],
+	" isAccount_",
+	["punctuation", ","],
+	["string", "\"checked function creates an account\""],
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["comment", "/**\n * A legacy role should never be set in default signers indexing map (because we have direct struct access in storage)\n */"],
+
+	["keyword", "invariant"],
+	["class-name", "legacyRolesAreNotUsedInNewRoles"],
+	["punctuation", "("],
+	["builtin", "address"],
+	" account",
+	["punctuation", ","],
+	["builtin", "bytes32"],
+	" role",
+	["punctuation", ")"],
+
+	["function", "isLegacyRole"],
+	["punctuation", "("],
+	"role",
+	["punctuation", ")"],
+	["operator", "="],
+	["operator", ">"],
+	["function", "_getDefaultSigner"],
+	["punctuation", "("],
+	"account",
+	["punctuation", ","],
+	" role",
+	["punctuation", ")"],
+	["operator", "=="],
+	["number", "0"],
+
+	["comment", "/**\n * view functions in general should not revert.\n * Some exceptions and more refined revert-characteristics are provided.\n */"],
+
+	["keyword", "rule"],
+	["class-name", "viewFunctionsDoNotRevert"],
+	["punctuation", "("],
+	["builtin", "method"],
+	" f",
+	["punctuation", ")"],
+	["keyword", "filtered"],
+	["punctuation", "{"],
+	" f ",
+	["operator", "-"],
+	["operator", ">"],
+
+	" \n\tf",
+	["punctuation", "."],
+	"isView \n\t",
+
+	["comment", "// some functions we ignore, and the reasons:"],
+
+	["operator", "&&"],
+	" f",
+	["punctuation", "."],
+	"selector ",
+	["operator", "!="],
+	["function", "hasAuthorizedSigner"],
+	["punctuation", "("],
+	["builtin", "address"],
+	["punctuation", ","],
+	["builtin", "string"],
+	["punctuation", ")"],
+	["punctuation", "."],
+	"selector ",
+	["comment", "// Calldatasize may not match"],
+
+	["operator", "&&"],
+	" f",
+	["punctuation", "."],
+	"selector ",
+	["operator", "!="],
+	["function", "batchGetMetadataURL"],
+	["punctuation", "("],
+	["builtin", "address"],
+	["punctuation", "["],
+	["punctuation", "]"],
+	["punctuation", ")"],
+	["punctuation", "."],
+	"selector ",
+	["comment", "// Calldatasize may not match"],
+
+	["punctuation", "}"],
+	["punctuation", "{"],
+
+	["builtin", "env"],
+	" e",
+	["punctuation", ";"],
+
+	["keyword", "require"],
+	" e",
+	["punctuation", "."],
+	"msg",
+	["punctuation", "."],
+	"value ",
+	["operator", "=="],
+	["number", "0"],
+	["punctuation", ";"],
+	["comment", "// view functions are not payable"],
+
+	["comment", "// functions that require special handling:"],
+
+	["keyword", "if"],
+	["punctuation", "("],
+	"f",
+	["punctuation", "."],
+	"selector ",
+	["operator", "=="],
+	["function", "getLegacySigner"],
+	["punctuation", "("],
+	["builtin", "address"],
+	["punctuation", ","],
+	["builtin", "bytes32"],
+	["punctuation", ")"],
+	["punctuation", "."],
+	"selector",
+	["punctuation", ")"],
+	["punctuation", "{"],
+
+	["comment", "// getLegacySigner requires getting a legacy role"],
+
+	["builtin", "address"],
+	" a",
+	["punctuation", ";"],
+
+	["builtin", "bytes32"],
+	" r",
+	["punctuation", ";"],
+
+	["keyword", "require"],
+	["function", "isLegacyRole"],
+	["punctuation", "("],
+	"r",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	"\n\t\tgetLegacySigner",
+	["keyword", "@withrevert"],
+	["punctuation", "("],
+	"a",
+	["punctuation", ","],
+	" r",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+	["keyword", "else"],
+	["keyword", "if"],
+	["punctuation", "("],
+	"f",
+	["punctuation", "."],
+	"selector ",
+	["operator", "=="],
+	["function", "hasLegacySigner"],
+	["punctuation", "("],
+	["builtin", "address"],
+	["punctuation", ","],
+	["builtin", "bytes32"],
+	["punctuation", ")"],
+	["punctuation", "."],
+	"selector",
+	["punctuation", ")"],
+	["punctuation", "{"],
+
+	["comment", "// hasLegacySigner requires getting a legacy role"],
+
+	["builtin", "address"],
+	" a",
+	["punctuation", ";"],
+
+	["builtin", "bytes32"],
+	" r",
+	["punctuation", ";"],
+
+	["keyword", "require"],
+	["function", "isLegacyRole"],
+	["punctuation", "("],
+	"r",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	"\n\t\thasLegacySigner",
+	["keyword", "@withrevert"],
+	["punctuation", "("],
+	"e",
+	["punctuation", ","],
+	" a",
+	["punctuation", ","],
+	" r",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+	["keyword", "else"],
+	["keyword", "if"],
+	["punctuation", "("],
+	"f",
+	["punctuation", "."],
+	"selector ",
+	["operator", "=="],
+	["function", "signerToAccount"],
+	["punctuation", "("],
+	["builtin", "address"],
+	["punctuation", ")"],
+	["punctuation", "."],
+	"selector",
+	["punctuation", ")"],
+	["punctuation", "{"],
+
+	["comment", "// will fail if address is not authorized by anyone, and is not an account."],
+
+	["builtin", "address"],
+	" a",
+	["punctuation", ";"],
+
+	["keyword", "require"],
+	["function", "_getAuthorizedBy"],
+	["punctuation", "("],
+	"a",
+	["punctuation", ")"],
+	["operator", "!="],
+	["number", "0"],
+	["operator", "||"],
+	["function", "isAccount"],
+	["punctuation", "("],
+	"a",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	"\n\t\tsignerToAccount",
+	["keyword", "@withrevert"],
+	["punctuation", "("],
+	"a",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+	["keyword", "else"],
+	["keyword", "if"],
+	["punctuation", "("],
+	"f",
+	["punctuation", "."],
+	"selector ",
+	["operator", "=="],
+	["function", "voteSignerToAccount"],
+	["punctuation", "("],
+	["builtin", "address"],
+	["punctuation", ")"],
+	["punctuation", "."],
+	"selector",
+	["punctuation", ")"],
+	["punctuation", "{"],
+
+	["builtin", "address"],
+	" a",
+	["punctuation", ";"],
+
+	["builtin", "address"],
+	" authBy ",
+	["operator", "="],
+	["function", "_getAuthorizedBy"],
+	["punctuation", "("],
+	"a",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "requireInvariant"],
+	["function", "authorizedByIsNeverReflexive"],
+	["punctuation", "("],
+	"a",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "require"],
+	["punctuation", "("],
+	"authBy ",
+	["operator", "!="],
+	["number", "0"],
+	["operator", "&&"],
+	["function", "isSigner"],
+	["punctuation", "("],
+	"authBy",
+	["punctuation", ","],
+	" a",
+	["punctuation", ","],
+	["function", "_getVoteRole"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["punctuation", ")"],
+	["punctuation", ")"],
+	["operator", "||"],
+	["punctuation", "("],
+	"authBy ",
+	["operator", "=="],
+	["number", "0"],
+	["operator", "&&"],
+	["function", "isAccount"],
+	["punctuation", "("],
+	"a",
+	["punctuation", ")"],
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	"\n\t\tvoteSignerToAccount",
+	["keyword", "@withrevert"],
+	["punctuation", "("],
+	"a",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+	["keyword", "else"],
+	["keyword", "if"],
+	["punctuation", "("],
+	"f",
+	["punctuation", "."],
+	"selector ",
+	["operator", "=="],
+	["function", "validatorSignerToAccount"],
+	["punctuation", "("],
+	["builtin", "address"],
+	["punctuation", ")"],
+	["punctuation", "."],
+	"selector",
+	["punctuation", ")"],
+	["punctuation", "{"],
+
+	["builtin", "address"],
+	" a",
+	["punctuation", ";"],
+
+	["builtin", "address"],
+	" authBy ",
+	["operator", "="],
+	["function", "_getAuthorizedBy"],
+	["punctuation", "("],
+	"a",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "requireInvariant"],
+	["function", "authorizedByIsNeverReflexive"],
+	["punctuation", "("],
+	"a",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "require"],
+	["punctuation", "("],
+	"authBy ",
+	["operator", "!="],
+	["number", "0"],
+	["operator", "&&"],
+	["function", "isSigner"],
+	["punctuation", "("],
+	"authBy",
+	["punctuation", ","],
+	" a",
+	["punctuation", ","],
+	["function", "_getValidatorRole"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["punctuation", ")"],
+	["punctuation", ")"],
+	["operator", "||"],
+	["punctuation", "("],
+	"authBy ",
+	["operator", "=="],
+	["number", "0"],
+	["operator", "&&"],
+	["function", "isAccount"],
+	["punctuation", "("],
+	"a",
+	["punctuation", ")"],
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	"\n\t\tvalidatorSignerToAccount",
+	["keyword", "@withrevert"],
+	["punctuation", "("],
+	"a",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+	["keyword", "else"],
+	["keyword", "if"],
+	["punctuation", "("],
+	"f",
+	["punctuation", "."],
+	"selector ",
+	["operator", "=="],
+	["function", "attestationSignerToAccount"],
+	["punctuation", "("],
+	["builtin", "address"],
+	["punctuation", ")"],
+	["punctuation", "."],
+	"selector",
+	["punctuation", ")"],
+	["punctuation", "{"],
+
+	["builtin", "address"],
+	" a",
+	["punctuation", ";"],
+
+	["builtin", "address"],
+	" authBy ",
+	["operator", "="],
+	["function", "_getAuthorizedBy"],
+	["punctuation", "("],
+	"a",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "requireInvariant"],
+	["function", "authorizedByIsNeverReflexive"],
+	["punctuation", "("],
+	"a",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "require"],
+	["punctuation", "("],
+	"authBy ",
+	["operator", "!="],
+	["number", "0"],
+	["operator", "&&"],
+	["function", "isSigner"],
+	["punctuation", "("],
+	"authBy",
+	["punctuation", ","],
+	" a",
+	["punctuation", ","],
+	["function", "_getAttestationRole"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["punctuation", ")"],
+	["punctuation", ")"],
+	["operator", "||"],
+	["punctuation", "("],
+	"authBy ",
+	["operator", "=="],
+	["number", "0"],
+	["operator", "&&"],
+	["function", "isAccount"],
+	["punctuation", "("],
+	"a",
+	["punctuation", ")"],
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	"\n\t\tattestationSignerToAccount",
+	["keyword", "@withrevert"],
+	["punctuation", "("],
+	"a",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+	["keyword", "else"],
+	["punctuation", "{"],
+
+	["builtin", "calldataarg"],
+	" arg",
+	["punctuation", ";"],
+
+	"\n\t\tf",
+	["keyword", "@withrevert"],
+	["punctuation", "("],
+	"e",
+	["punctuation", ","],
+	" arg",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["keyword", "assert"],
+	["operator", "!"],
+	["keyword", "lastReverted"],
+	["punctuation", ","],
+	["string", "\"View functions should not revert\""],
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["comment", "/**\n * the authorizedBy should never be reflexive, i.e. an account cannot be its own signer, or a signer cannot be authroize itself.\n */"],
+
+	["keyword", "invariant"],
+	["class-name", "authorizedByIsNeverReflexive"],
+	["punctuation", "("],
+	["builtin", "address"],
+	" a",
+	["punctuation", ")"],
+
+	"\n\ta ",
+	["operator", "!="],
+	["number", "0"],
+	["operator", "="],
+	["operator", ">"],
+	["function", "_getAuthorizedBy"],
+	["punctuation", "("],
+	"a",
+	["punctuation", ")"],
+	["operator", "!="],
+	" a\n\n",
+
+	["comment", "/**\n * If we set signerAuthroization to be completed, it means the signer is marked as authorizedBy the account.\n * The other direction may not be correct because authorizedBy is persistent while signer authorizations can be removed. \n */"],
+
+	["keyword", "invariant"],
+	["class-name", "mustHaveAuthorizedByIfCompletedSignerAuthorization"],
+	["punctuation", "("],
+	["builtin", "address"],
+	" account",
+	["punctuation", ","],
+	["builtin", "bytes32"],
+	" role",
+	["punctuation", ","],
+	["builtin", "address"],
+	" signer",
+	["punctuation", ")"],
+
+	" \n\taccount ",
+	["operator", "!="],
+	["number", "0"],
+	["operator", "="],
+	["operator", ">"],
+	["punctuation", "("],
+	["function", "isCompletedSignerAuthorization"],
+	["punctuation", "("],
+	"account",
+	["punctuation", ","],
+	" role",
+	["punctuation", ","],
+	" signer",
+	["punctuation", ")"],
+	["operator", "="],
+	["operator", ">"],
+	["function", "_getAuthorizedBy"],
+	["punctuation", "("],
+	"signer",
+	["punctuation", ")"],
+	["operator", "=="],
+	" account",
+	["punctuation", ")"],
+
+	["comment", "/**\n * For signerAuthorization, a signer can only appear as a signer of a single account.\n */"],
+
+	["keyword", "invariant"],
+	["class-name", "noMultipleAccountsPerSignerInARole"],
+	["punctuation", "("],
+	["builtin", "address"],
+	" account",
+	["punctuation", ","],
+	["builtin", "address"],
+	" account2",
+	["punctuation", ","],
+	["builtin", "bytes32"],
+	" role",
+	["punctuation", ","],
+	["builtin", "bytes32"],
+	" role2",
+	["punctuation", ","],
+	["builtin", "address"],
+	" signer",
+	["punctuation", ")"],
+
+	"\n\taccount ",
+	["operator", "!="],
+	["number", "0"],
+	["operator", "&&"],
+	" account2 ",
+	["operator", "!="],
+	["number", "0"],
+
+	["operator", "="],
+	["operator", ">"],
+	["punctuation", "("],
+	["function", "isCompletedSignerAuthorization"],
+	["punctuation", "("],
+	"account",
+	["punctuation", ","],
+	" role",
+	["punctuation", ","],
+	" signer",
+	["punctuation", ")"],
+	["operator", "&&"],
+	["function", "isCompletedSignerAuthorization"],
+	["punctuation", "("],
+	"account2",
+	["punctuation", ","],
+	" role2",
+	["punctuation", ","],
+	" signer",
+	["punctuation", ")"],
+
+	["operator", "="],
+	["operator", ">"],
+	" account ",
+	["operator", "=="],
+	" account2",
+	["punctuation", ")"],
+	["punctuation", "{"],
+
+	["keyword", "preserved"],
+	["punctuation", "{"],
+
+	["keyword", "requireInvariant"],
+	["function", "completedSignerAuthMeansAuthByIsSet"],
+	["punctuation", "("],
+	"account",
+	["punctuation", ","],
+	" role",
+	["punctuation", ","],
+	" signer",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "requireInvariant"],
+	["function", "completedSignerAuthMeansAuthByIsSet"],
+	["punctuation", "("],
+	"account2",
+	["punctuation", ","],
+	" role2",
+	["punctuation", ","],
+	" signer",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["punctuation", "}"],
+
+	["comment", "/**\n * Only legacy roles allow to jump from no signer authorization being started, to being completed, in one single invocation.\n */"],
+
+	["keyword", "rule"],
+	["class-name", "cantGoFromNoAuthorizationToCompletedInOneStepUnlessRoleIsLegacy"],
+	["punctuation", "("],
+	["builtin", "method"],
+	" f",
+	["punctuation", ")"],
+	["keyword", "filtered"],
+	["punctuation", "{"],
+	" f ",
+	["operator", "-"],
+	["operator", ">"],
+
+	["operator", "!"],
+	"f",
+	["punctuation", "."],
+	"isView \n\t\t",
+
+	["comment", "// the authorizeSignerWithSignature allows the signer to provide a signature to the account, so we exclude this option"],
+
+	["operator", "&&"],
+	" f",
+	["punctuation", "."],
+	"selector ",
+	["operator", "!="],
+	["function", "authorizeSignerWithSignature"],
+	["punctuation", "("],
+	["builtin", "address"],
+	["punctuation", ","],
+	["builtin", "bytes32"],
+	["punctuation", ","],
+	["builtin", "uint8"],
+	["punctuation", ","],
+	["builtin", "bytes32"],
+	["punctuation", ","],
+	["builtin", "bytes32"],
+	["punctuation", ")"],
+	["punctuation", "."],
+	"selector\n",
+
+	["punctuation", "}"],
+	["punctuation", "{"],
+
+	["builtin", "address"],
+	" account",
+	["punctuation", ";"],
+
+	["builtin", "bytes32"],
+	" role",
+	["punctuation", ";"],
+
+	["builtin", "address"],
+	" signer",
+	["punctuation", ";"],
+
+	["keyword", "require"],
+	["operator", "!"],
+	["function", "isStartedSignerAuthorization"],
+	["punctuation", "("],
+	"account",
+	["punctuation", ","],
+	" role",
+	["punctuation", ","],
+	" signer",
+	["punctuation", ")"],
+	["operator", "&&"],
+	["operator", "!"],
+	["function", "isCompletedSignerAuthorization"],
+	["punctuation", "("],
+	"account",
+	["punctuation", ","],
+	" role",
+	["punctuation", ","],
+	" signer",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["function", "callArbitrary"],
+	["punctuation", "("],
+	"f",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "assert"],
+	["function", "isCompletedSignerAuthorization"],
+	["punctuation", "("],
+	"account",
+	["punctuation", ","],
+	" role",
+	["punctuation", ","],
+	" signer",
+	["punctuation", ")"],
+	["operator", "="],
+	["operator", ">"],
+	["function", "isLegacyRole"],
+	["punctuation", "("],
+	"role",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["comment", "/**\n * One cannot complete the signer authorization process unless the signer itself signs on the transaction,\n * or the signer provided a signature.\n */"],
+
+	["keyword", "rule"],
+	["class-name", "cantMakeASignerForNonLegacyRoleWithoutApprovalOfSigner"],
+	["punctuation", "("],
+	["builtin", "method"],
+	" f",
+	["punctuation", ")"],
+	["keyword", "filtered"],
+	["punctuation", "{"],
+	" f ",
+	["operator", "-"],
+	["operator", ">"],
+
+	["operator", "!"],
+	"f",
+	["punctuation", "."],
+	"isView \n\t\t",
+
+	["comment", "// the authorizeSignerWithSignature allows the signer to provide a signature to the account, so we exclude this option"],
+
+	["operator", "&&"],
+	" f",
+	["punctuation", "."],
+	"selector ",
+	["operator", "!="],
+	["function", "authorizeSignerWithSignature"],
+	["punctuation", "("],
+	["builtin", "address"],
+	["punctuation", ","],
+	["builtin", "bytes32"],
+	["punctuation", ","],
+	["builtin", "uint8"],
+	["punctuation", ","],
+	["builtin", "bytes32"],
+	["punctuation", ","],
+	["builtin", "bytes32"],
+	["punctuation", ")"],
+	["punctuation", "."],
+	"selector\t\n",
+
+	["punctuation", "}"],
+	["punctuation", "{"],
+
+	["builtin", "address"],
+	" account",
+	["punctuation", ";"],
+
+	["builtin", "bytes32"],
+	" role",
+	["punctuation", ";"],
+
+	["comment", "// Leagcy roles can be updated using a signature"],
+
+	["keyword", "require"],
+	["operator", "!"],
+	["function", "isLegacyRole"],
+	["punctuation", "("],
+	"role",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["builtin", "address"], " signer", ["punctuation", ";"],
+
+	["comment", "// not completed signer auth yet (but may have started)"],
+
+	["keyword", "require"],
+	["operator", "!"],
+	["function", "isCompletedSignerAuthorization"],
+	["punctuation", "("],
+	"account",
+	["punctuation", ","],
+	" role",
+	["punctuation", ","],
+	" signer",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["builtin", "env"],
+	" e",
+	["punctuation", ";"],
+
+	["builtin", "calldataarg"],
+	" arg",
+	["punctuation", ";"],
+
+	["function", "f"],
+	["punctuation", "("],
+	"e",
+	["punctuation", ","],
+	" arg",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "assert"],
+	["function", "isCompletedSignerAuthorization"],
+	["punctuation", "("],
+	"account",
+	["punctuation", ","],
+	" role",
+	["punctuation", ","],
+	" signer",
+	["punctuation", ")"],
+	["operator", "="],
+	["operator", ">"],
+	" e",
+	["punctuation", "."],
+	"msg",
+	["punctuation", "."],
+	"sender ",
+	["operator", "=="],
+	" signer",
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["comment", "/**\n * One cannot start a signer authorization on behalf of another account.\n */"],
+
+	["keyword", "rule"],
+	["class-name", "cannotStartSignerAuthorizationsForOtherAccounts"],
+	["punctuation", "("],
+	["builtin", "method"],
+	" f",
+	["punctuation", ")"],
+	["keyword", "filtered"],
+	["punctuation", "{"],
+	" f ",
+	["operator", "-"],
+	["operator", ">"],
+	["operator", "!"],
+	"f",
+	["punctuation", "."],
+	"isView ",
+	["punctuation", "}"],
+	["punctuation", "{"],
+
+	["builtin", "address"],
+	" account",
+	["punctuation", ";"],
+
+	["builtin", "bytes32"],
+	" role",
+	["punctuation", ";"],
+
+	["builtin", "address"],
+	" signer",
+	["punctuation", ";"],
+
+	["keyword", "require"],
+	["operator", "!"],
+	["function", "isStartedSignerAuthorization"],
+	["punctuation", "("],
+	"account",
+	["punctuation", ","],
+	" role",
+	["punctuation", ","],
+	" signer",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["builtin", "env"],
+	" e",
+	["punctuation", ";"],
+
+	["builtin", "calldataarg"],
+	" arg",
+	["punctuation", ";"],
+
+	["function", "f"],
+	["punctuation", "("],
+	"e",
+	["punctuation", ","],
+	"arg",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "assert"],
+	["function", "isStartedSignerAuthorization"],
+	["punctuation", "("],
+	"account",
+	["punctuation", ","],
+	" role",
+	["punctuation", ","],
+	" signer",
+	["punctuation", ")"],
+	["operator", "="],
+	["operator", ">"],
+	" e",
+	["punctuation", "."],
+	"msg",
+	["punctuation", "."],
+	"sender ",
+	["operator", "=="],
+	" account",
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["comment", "/**\n * The only way authorizedBy should be set is using a signature, or by the signer being the caller\n */"],
+
+	["keyword", "rule"],
+	["class-name", "cannotSetAuthorizedByWithoutSignatures"],
+	["punctuation", "("],
+	["builtin", "method"],
+	" f",
+	["punctuation", ")"],
+	["keyword", "filtered"],
+	["punctuation", "{"],
+	" f ",
+	["operator", "-"],
+	["operator", ">"],
+
+	["operator", "!"],
+	"f",
+	["punctuation", "."],
+	"isView \n\t\t",
+
+	["operator", "&&"],
+	" f",
+	["punctuation", "."],
+	"selector ",
+	["operator", "!="],
+	["function", "authorizeSignerWithSignature"],
+	["punctuation", "("],
+	["builtin", "address"],
+	["punctuation", ","],
+	["builtin", "bytes32"],
+	["punctuation", ","],
+	["builtin", "uint8"],
+	["punctuation", ","],
+	["builtin", "bytes32"],
+	["punctuation", ","],
+	["builtin", "bytes32"],
+	["punctuation", ")"],
+	["punctuation", "."],
+	"selector\n\t\t",
+
+	["operator", "&&"],
+	" f",
+	["punctuation", "."],
+	"selector ",
+	["operator", "!="],
+	["function", "authorizeAttestationSigner"],
+	["punctuation", "("],
+	["builtin", "address"],
+	["punctuation", ","],
+	["builtin", "uint8"],
+	["punctuation", ","],
+	["builtin", "bytes32"],
+	["punctuation", ","],
+	["builtin", "bytes32"],
+	["punctuation", ")"],
+	["punctuation", "."],
+	"selector\n\t\t",
+
+	["operator", "&&"],
+	" f",
+	["punctuation", "."],
+	"selector ",
+	["operator", "!="],
+	["function", "authorizeValidatorSigner"],
+	["punctuation", "("],
+	["builtin", "address"],
+	["punctuation", ","],
+	["builtin", "uint8"],
+	["punctuation", ","],
+	["builtin", "bytes32"],
+	["punctuation", ","],
+	["builtin", "bytes32"],
+	["punctuation", ")"],
+	["punctuation", "."],
+	"selector\n\t\t",
+
+	["operator", "&&"],
+	" f",
+	["punctuation", "."],
+	"selector ",
+	["operator", "!="],
+	["function", "authorizeValidatorSignerWithKeys"],
+	["punctuation", "("],
+	["builtin", "address"],
+	["punctuation", ","],
+	["builtin", "uint8"],
+	["punctuation", ","],
+	["builtin", "bytes32"],
+	["punctuation", ","],
+	["builtin", "bytes32"],
+	["punctuation", ","],
+	["builtin", "bytes"],
+	["punctuation", ","],
+	["builtin", "bytes"],
+	["punctuation", ","],
+	["builtin", "bytes"],
+	["punctuation", ")"],
+	["punctuation", "."],
+	"selector\n\t\t",
+
+	["operator", "&&"],
+	" f",
+	["punctuation", "."],
+	"selector ",
+	["operator", "!="],
+	["function", "authorizeValidatorSignerWithPublicKey"],
+	["punctuation", "("],
+	["builtin", "address"],
+	["punctuation", ","],
+	["builtin", "uint8"],
+	["punctuation", ","],
+	["builtin", "bytes32"],
+	["punctuation", ","],
+	["builtin", "bytes32"],
+	["punctuation", ","],
+	["builtin", "bytes"],
+	["punctuation", ")"],
+	["punctuation", "."],
+	"selector\n\t\t",
+
+	["operator", "&&"],
+	" f",
+	["punctuation", "."],
+	"selector ",
+	["operator", "!="],
+	["function", "authorizeVoteSigner"],
+	["punctuation", "("],
+	["builtin", "address"],
+	["punctuation", ","],
+	["builtin", "uint8"],
+	["punctuation", ","],
+	["builtin", "bytes32"],
+	["punctuation", ","],
+	["builtin", "bytes32"],
+	["punctuation", ")"],
+	["punctuation", "."],
+	"selector\n",
+
+	["punctuation", "}"],
+	["punctuation", "{"],
+
+	["builtin", "address"],
+	" d",
+	["punctuation", ";"],
+
+	["keyword", "require"],
+	["function", "_getAuthorizedBy"],
+	["punctuation", "("],
+	"d",
+	["punctuation", ")"],
+	["operator", "=="],
+	["number", "0"],
+	["punctuation", ";"],
+
+	["builtin", "env"],
+	" e",
+	["punctuation", ";"],
+
+	["builtin", "calldataarg"],
+	" arg",
+	["punctuation", ";"],
+
+	["function", "f"],
+	["punctuation", "("],
+	"e",
+	["punctuation", ","],
+	" arg",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "assert"],
+	["function", "_getAuthorizedBy"],
+	["punctuation", "("],
+	"d",
+	["punctuation", ")"],
+	["operator", "=="],
+	["number", "0"],
+	["operator", "||"],
+	" e",
+	["punctuation", "."],
+	"msg",
+	["punctuation", "."],
+	"sender ",
+	["operator", "=="],
+	" d",
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["comment", "/**\n * Conditions for being able to change signerAuthorization\n */"],
+
+	["keyword", "rule"],
+	["class-name", "signerAuthorizationChangePrivileges"],
+	["punctuation", "("],
+	["builtin", "address"],
+	" a",
+	["punctuation", ","],
+	["builtin", "bytes32"],
+	" r",
+	["punctuation", ","],
+	["builtin", "address"],
+	" s",
+	["punctuation", ","],
+	["builtin", "method"],
+	" f",
+	["punctuation", ")"],
+	["keyword", "filtered"],
+	["punctuation", "{"],
+	" f ",
+	["operator", "-"],
+	["operator", ">"],
+
+	["operator", "!"],
+	"f",
+	["punctuation", "."],
+	"isView \n",
+
+	["punctuation", "}"],
+	["punctuation", "{"],
+
+	["builtin", "bool"],
+	" _started ",
+	["operator", "="],
+	["function", "isStartedSignerAuthorization"],
+	["punctuation", "("],
+	"a",
+	["punctuation", ","],
+	" r",
+	["punctuation", ","],
+	" s",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["builtin", "bool"],
+	" _completed ",
+	["operator", "="],
+	["function", "isCompletedSignerAuthorization"],
+	["punctuation", "("],
+	"a",
+	["punctuation", ","],
+	" r",
+	["punctuation", ","],
+	" s",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["builtin", "env"],
+	" e",
+	["punctuation", ";"],
+
+	["builtin", "calldataarg"],
+	" arg",
+	["punctuation", ";"],
+
+	["function", "f"],
+	["punctuation", "("],
+	"e",
+	["punctuation", ","],
+	" arg",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["builtin", "bool"],
+	" started_ ",
+	["operator", "="],
+	["function", "isStartedSignerAuthorization"],
+	["punctuation", "("],
+	"a",
+	["punctuation", ","],
+	" r",
+	["punctuation", ","],
+	" s",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["builtin", "bool"],
+	" completed_ ",
+	["operator", "="],
+	["function", "isCompletedSignerAuthorization"],
+	["punctuation", "("],
+	"a",
+	["punctuation", ","],
+	" r",
+	["punctuation", ","],
+	" s",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "assert"],
+	" _started ",
+	["operator", "!="],
+	" started_ ",
+	["operator", "="],
+	["operator", ">"],
+	" e",
+	["punctuation", "."],
+	"msg",
+	["punctuation", "."],
+	"sender ",
+	["operator", "=="],
+	" a",
+	["punctuation", ","],
+	["string", "\"Only account can start a signer authorization\""],
+	["punctuation", ";"],
+
+	["keyword", "assert"],
+	" _completed ",
+	["operator", "&&"],
+	["operator", "!"],
+	"completed_ ",
+	["operator", "="],
+	["operator", ">"],
+	" e",
+	["punctuation", "."],
+	"msg",
+	["punctuation", "."],
+	"sender ",
+	["operator", "=="],
+	" a",
+	["punctuation", ","],
+	["string", "\"Only account can remove a signer authorization\""],
+	["punctuation", ";"],
+
+	["keyword", "assert"],
+	["operator", "!"],
+	"_completed ",
+	["operator", "&&"],
+	" completed_ ",
+	["operator", "="],
+	["operator", ">"],
+	" e",
+	["punctuation", "."],
+	"msg",
+	["punctuation", "."],
+	"sender ",
+	["operator", "=="],
+	" a ",
+	["operator", "||"],
+	" e",
+	["punctuation", "."],
+	"msg",
+	["punctuation", "."],
+	"sender ",
+	["operator", "=="],
+	" s",
+	["punctuation", ","],
+	["string", "\"Only signer or account can complete a signer authorization\""],
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["comment", "/**\n * There's no contents to the fallback function\n */"],
+
+	["keyword", "rule"],
+	["class-name", "check_no_fallback"],
+	["punctuation", "{"],
+
+	["builtin", "env"],
+	" e",
+	["punctuation", ";"],
+
+	["builtin", "calldataarg"],
+	" arg",
+	["punctuation", ";"],
+
+	["function", "invoke_fallback"],
+	["punctuation", "("],
+	"e",
+	["punctuation", ","],
+	" arg",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "assert"], ["keyword", "lastReverted"], ["punctuation", ";"],
+	["punctuation", "}"],
+
+	["comment", "/**\n * The values of get*Signer getters should be consistent for all roles.\n */"],
+
+	["keyword", "rule"],
+	["class-name", "gettersInAgreement"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["punctuation", "{"],
+
+	["builtin", "address"],
+	" account",
+	["punctuation", ";"],
+
+	["keyword", "require"],
+	" account ",
+	["operator", "!="],
+	["number", "0"],
+	["punctuation", ";"],
+
+	["builtin", "bytes32"],
+	" role",
+	["punctuation", ";"],
+
+	["builtin", "address"],
+	" indexedSigner ",
+	["operator", "="],
+	["function", "getIndexedSigner"],
+	["punctuation", "("],
+	"account",
+	["punctuation", ","],
+	" role",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["builtin", "address"],
+	" defaultSigner ",
+	["operator", "="],
+	["function", "getDefaultSigner"],
+	["punctuation", "("],
+	"account",
+	["punctuation", ","],
+	" role",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["builtin", "address"],
+	" legacySigner ",
+	["operator", "="],
+	["function", "getLegacySigner"],
+	["punctuation", "("],
+	"account",
+	["punctuation", ","],
+	" role",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["builtin", "address"],
+	" voteSigner ",
+	["operator", "="],
+	["function", "getVoteSigner"],
+	["punctuation", "("],
+	"account",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["builtin", "address"],
+	" validatorSigner ",
+	["operator", "="],
+	["function", "getValidatorSigner"],
+	["punctuation", "("],
+	"account",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["builtin", "address"],
+	" attestationSigner ",
+	["operator", "="],
+	["function", "getAttestationSigner"],
+	["punctuation", "("],
+	"account",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["keyword", "if"],
+	["punctuation", "("],
+	"role ",
+	["operator", "=="],
+	["function", "_getVoteRole"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["punctuation", ")"],
+	["punctuation", "{"],
+
+	["keyword", "assert"],
+	" indexedSigner ",
+	["operator", "=="],
+	" legacySigner ",
+	["operator", "&&"],
+	" indexedSigner ",
+	["operator", "=="],
+	" voteSigner",
+	["punctuation", ","],
+	["string", "\"indexed signer agrees with legacy signer for vote role\""],
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+	["keyword", "else"],
+	["keyword", "if"],
+	["punctuation", "("],
+	"role ",
+	["operator", "=="],
+	["function", "_getValidatorRole"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["punctuation", ")"],
+	["punctuation", "{"],
+
+	["keyword", "assert"],
+	" indexedSigner ",
+	["operator", "=="],
+	" legacySigner ",
+	["operator", "&&"],
+	" indexedSigner ",
+	["operator", "=="],
+	" validatorSigner",
+	["punctuation", ","],
+	["string", "\"indexed signer agrees with legacy signer for validator role\""],
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+	["keyword", "else"],
+	["keyword", "if"],
+	["punctuation", "("],
+	"role ",
+	["operator", "=="],
+	["function", "_getAttestationRole"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["punctuation", ")"],
+	["punctuation", "{"],
+
+	["keyword", "assert"],
+	" indexedSigner ",
+	["operator", "=="],
+	" legacySigner ",
+	["operator", "&&"],
+	" indexedSigner ",
+	["operator", "=="],
+	" attestationSigner",
+	["punctuation", ","],
+	["string", "\"indexed signer agrees with legacy signer for attestation role\""],
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+	["keyword", "else"],
+	["punctuation", "{"],
+
+	["keyword", "assert"],
+	" indexedSigner ",
+	["operator", "=="],
+	" defaultSigner",
+	["punctuation", ","],
+	["string", "\"for any non legacy role indexed signer is default signer\""],
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["keyword", "assert"],
+	" indexedSigner ",
+	["operator", "!="],
+	["number", "0"],
+	["operator", "&&"],
+	" defaultSigner ",
+	["operator", "!="],
+	["number", "0"],
+	["operator", "&&"],
+	" legacySigner ",
+	["operator", "!="],
+	["number", "0"],
+
+	["operator", "&&"],
+	" voteSigner ",
+	["operator", "!="],
+	["number", "0"],
+	["operator", "&&"],
+	" validatorSigner ",
+	["operator", "!="],
+	["number", "0"],
+	["operator", "&&"],
+	" attestationSigner ",
+	["operator", "!="],
+	["number", "0"],
+	["punctuation", ","],
+	["string", "\"signer is never address 0\""],
+	["punctuation", ";"],
+
+	["comment", "// original assertion is wrong"],
+
+	["comment", "//assert indexedSigner != account => defaultSigner != account, \"If indexed signer is a distinct address then default signer for this role is also a distinct address\";"],
+
+	["keyword", "assert"],
+	["operator", "!"],
+	["function", "isLegacyRole"],
+	["punctuation", "("],
+	"role",
+	["punctuation", ")"],
+	["operator", "&&"],
+	" indexedSigner ",
+	["operator", "!="],
+	" account ",
+	["operator", "="],
+	["operator", ">"],
+	" defaultSigner ",
+	["operator", "!="],
+	" account",
+	["punctuation", ","],
+	["string", "\"If indexed signer is a distinct address then default signer for this role is also a distinct address\""],
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["comment", "/**\n * account to signer and signer to account getters should agree\n */"],
+
+	["keyword", "invariant"],
+	["class-name", "accountToSignerAndInverseVote"],
+	["punctuation", "("],
+	["builtin", "address"],
+	" a",
+	["punctuation", ","],
+	["builtin", "address"],
+	" s",
+	["punctuation", ","],
+	["builtin", "bytes32"],
+	" r",
+	["punctuation", ")"],
+
+	"\n\tr ",
+	["operator", "=="],
+	["function", "_getVoteRole"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["operator", "="],
+	["operator", ">"],
+	["punctuation", "("],
+	"s ",
+	["operator", "=="],
+	["function", "getVoteSigner"],
+	["punctuation", "("],
+	"a",
+	["punctuation", ")"],
+	["operator", "="],
+	["operator", ">"],
+	["function", "voteSignerToAccount"],
+	["punctuation", "("],
+	"s",
+	["punctuation", ")"],
+	["operator", "=="],
+	" a",
+	["punctuation", ")"],
+
+	["punctuation", "{"],
+
+	["keyword", "preserved"],
+	["punctuation", "{"],
+
+	["keyword", "require"],
+	" a ",
+	["operator", "!="],
+	" s",
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["punctuation", "}"],
+
+	["keyword", "invariant"],
+	["class-name", "accountToSignerAndInverseValidator"],
+	["punctuation", "("],
+	["builtin", "address"],
+	" a",
+	["punctuation", ","],
+	["builtin", "address"],
+	" s",
+	["punctuation", ","],
+	["builtin", "bytes32"],
+	" r",
+	["punctuation", ")"],
+
+	"\t\n\tr ",
+	["operator", "=="],
+	["function", "_getValidatorRole"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["operator", "="],
+	["operator", ">"],
+	["punctuation", "("],
+	"s ",
+	["operator", "=="],
+	["function", "getValidatorSigner"],
+	["punctuation", "("],
+	"a",
+	["punctuation", ")"],
+	["operator", "="],
+	["operator", ">"],
+	["function", "validatorSignerToAccount"],
+	["punctuation", "("],
+	"s",
+	["punctuation", ")"],
+	["operator", "=="],
+	" a",
+	["punctuation", ")"],
+
+	["punctuation", "{"],
+
+	["keyword", "preserved"],
+	["punctuation", "{"],
+
+	["keyword", "require"],
+	" a ",
+	["operator", "!="],
+	" s",
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["punctuation", "}"],
+
+	["keyword", "invariant"],
+	["class-name", "accountToSignerAndInverseAttestation"],
+	["punctuation", "("],
+	["builtin", "address"],
+	" a",
+	["punctuation", ","],
+	["builtin", "address"],
+	" s",
+	["punctuation", ","],
+	["builtin", "bytes32"],
+	" r",
+	["punctuation", ")"],
+
+	"\n\tr ",
+	["operator", "=="],
+	["function", "_getAttestationRole"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["operator", "="],
+	["operator", ">"],
+	["punctuation", "("],
+	"s ",
+	["operator", "=="],
+	["function", "getAttestationSigner"],
+	["punctuation", "("],
+	"a",
+	["punctuation", ")"],
+	["operator", "="],
+	["operator", ">"],
+	["function", "attestationSignerToAccount"],
+	["punctuation", "("],
+	"s",
+	["punctuation", ")"],
+	["operator", "=="],
+	" a",
+	["punctuation", ")"],
+
+	["punctuation", "{"],
+
+	["keyword", "preserved"],
+	["punctuation", "{"],
+
+	["keyword", "require"],
+	" a ",
+	["operator", "!="],
+	" s",
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["punctuation", "}"],
+
+	["keyword", "invariant"],
+	["class-name", "accountToSignerAndInverseNewRoles"],
+	["punctuation", "("],
+	["builtin", "address"],
+	" a",
+	["punctuation", ","],
+	["builtin", "address"],
+	" s",
+	["punctuation", ","],
+	["builtin", "bytes32"],
+	" r",
+	["punctuation", ")"],
+
+	["function", "getIndexedSigner"],
+	["punctuation", "("],
+	"a",
+	["punctuation", ","],
+	" r",
+	["punctuation", ")"],
+	["operator", "=="],
+	" s ",
+	["operator", "="],
+	["operator", ">"],
+	["function", "signerToAccount"],
+	["punctuation", "("],
+	"s",
+	["punctuation", ")"],
+	["operator", "=="],
+	" a \n",
+
+	["punctuation", "{"],
+
+	["keyword", "preserved"],
+	["punctuation", "{"],
+
+	["keyword", "require"],
+	" a ",
+	["operator", "!="],
+	" s",
+	["punctuation", ";"],
+
+	["punctuation", "}"],
+
+	["punctuation", "}"],
+
+	["comment", "/**\n * A utility for shortening calls to arbitrary functions in which we do not care about the environment.\n */"],
+
+	["keyword", "function"],
+	["class-name", "callArbitrary"],
+	["punctuation", "("],
+	["builtin", "method"],
+	" f",
+	["punctuation", ")"],
+	["punctuation", "{"],
+
+	["builtin", "env"],
+	" e",
+	["punctuation", ";"],
+
+	["builtin", "calldataarg"],
+	" arg",
+	["punctuation", ";"],
+
+	["function", "f"],
+	["punctuation", "("],
+	"e",
+	["punctuation", ","],
+	" arg",
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["punctuation", "}"]
+]
