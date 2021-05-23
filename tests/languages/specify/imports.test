@@ -1,0 +1,120 @@
+import AnotherSpec
+
+using C as cInstance
+
+use builtin rule rule_name
+use builtin invariant inv_name
+
+/* a bunch of summaries */
+methods {
+    getSwag() => DISPATCHER(true);
+    getSwag2(uint) => ALWAYS(5);
+    doCall(uint) => CONSTANT
+    doCall2(uint) => NONDET
+    havocd() => HAVOC_ECF
+    NONECF(bytes32[]) => HAVOC
+    all() => HAVOC_ALL
+    automatic() returns uint256 envfree => AUTO
+    automatic2() returns (uint256) envfree => AUTO
+}
+
+----------------------------------------------------
+
+[
+	["keyword", "import"], " AnotherSpec\n\n",
+
+	["keyword", "using"], " C ", ["keyword", "as"], " cInstance\n\n",
+
+	["keyword", "use"],
+	["keyword", "builtin"],
+	["keyword", "rule"],
+	["class-name", "rule_name"],
+
+	["keyword", "use"],
+	["keyword", "builtin"],
+	["keyword", "invariant"],
+	["class-name", "inv_name"],
+
+	["comment", "/* a bunch of summaries */"],
+
+	["keyword", "methods"],
+	["punctuation", "{"],
+
+	["function", "getSwag"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["operator", "=>"],
+	["keyword", "DISPATCHER"],
+	["punctuation", "("],
+	["boolean", "true"],
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["function", "getSwag2"],
+	["punctuation", "("],
+	["builtin", "uint"],
+	["punctuation", ")"],
+	["operator", "=>"],
+	["keyword", "ALWAYS"],
+	["punctuation", "("],
+	["number", "5"],
+	["punctuation", ")"],
+	["punctuation", ";"],
+
+	["function", "doCall"],
+	["punctuation", "("],
+	["builtin", "uint"],
+	["punctuation", ")"],
+	["operator", "=>"],
+	["keyword", "CONSTANT"],
+
+	["function", "doCall2"],
+	["punctuation", "("],
+	["builtin", "uint"],
+	["punctuation", ")"],
+	["operator", "=>"],
+	["keyword", "NONDET"],
+
+	["function", "havocd"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["operator", "=>"],
+	["keyword", "HAVOC_ECF"],
+
+	["function", "NONECF"],
+	["punctuation", "("],
+	["builtin", "bytes32"],
+	["punctuation", "["],
+	["punctuation", "]"],
+	["punctuation", ")"],
+	["operator", "=>"],
+	["keyword", "HAVOC"],
+
+	["function", "all"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["operator", "=>"],
+	["keyword", "HAVOC_ALL"],
+
+	["function", "automatic"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["builtin", "uint256"],
+	["keyword", "envfree"],
+	["operator", "=>"],
+	["keyword", "AUTO"],
+
+	["function", "automatic2"],
+	["punctuation", "("],
+	["punctuation", ")"],
+	["keyword", "returns"],
+	["punctuation", "("],
+	["builtin", "uint256"],
+	["punctuation", ")"],
+	["keyword", "envfree"],
+	["operator", "=>"],
+	["keyword", "AUTO"],
+
+	["punctuation", "}"]
+]
