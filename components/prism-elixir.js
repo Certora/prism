@@ -7,7 +7,7 @@ Prism.languages.elixir = {
 		}
 	},
 	'comment': {
-		pattern: /#.*/m,
+		pattern: /#.*/,
 		greedy: true
 	},
 	// ~r"""foo""" (multi-line), ~r'''foo''' (multi-line), ~r/foo/, ~r|foo|, ~r"foo", ~r'foo', ~r(foo), ~r[foo], ~r{foo}, ~r<foo>
@@ -51,7 +51,7 @@ Prism.languages.elixir = {
 		alias: 'class-name'
 	},
 	// Look-ahead prevents bad highlighting of the :: operator
-	'attr-name': /\w+\??:(?!:)/,
+	'attr-name': /\b\w+\??:(?!:)/,
 	'argument': {
 		// Look-behind prevents bad highlighting of the && operator
 		pattern: /(^|[^&])&\d+/,
@@ -62,10 +62,10 @@ Prism.languages.elixir = {
 		pattern: /@\w+/,
 		alias: 'variable'
 	},
-	'function': /\b[_a-zA-Z]\w*[?!]?(?:(?=\s*(?:\.\s*)?\()|(?=\/\d+))/,
+	'function': /\b[_a-zA-Z]\w*[?!]?(?:(?=\s*(?:\.\s*)?\()|(?=\/\d))/,
 	'number': /\b(?:0[box][a-f\d_]+|\d[\d_]*)(?:\.[\d_]+)?(?:e[+-]?[\d_]+)?\b/i,
-	'keyword': /\b(?:after|alias|and|case|catch|cond|def(?:callback|exception|impl|module|p|protocol|struct|delegate)?|do|else|end|fn|for|if|import|not|or|raise|require|rescue|try|unless|use|when)\b/,
-	'boolean': /\b(?:true|false|nil)\b/,
+	'keyword': /\b(?:after|alias|and|case|catch|cond|def(?:callback|delegate|exception|impl|macro|module|n|np|p|protocol|struct)?|do|else|end|fn|for|if|import|not|or|quote|raise|require|rescue|try|unless|unquote|use|when)\b/,
+	'boolean': /\b(?:false|nil|true)\b/,
 	'operator': [
 		/\bin\b|&&?|\|[|>]?|\\\\|::|\.\.\.?|\+\+?|-[->]?|<[-=>]|>=|!==?|\B!|=(?:==?|[>~])?|[*\/^]/,
 		{

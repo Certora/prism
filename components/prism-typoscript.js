@@ -48,25 +48,25 @@
 			}
 		],
 		'string': {
-			pattern: /^([^=]*=[< ]?)(?:(?!]\n).)*/,
+			pattern: /^([^=]*=[< ]?)(?:(?!\]\n).)*/,
 			lookbehind: true,
 			inside: {
-				'function': /{\$.*}/, // constants include
+				'function': /\{\$.*\}/, // constants include
 				'keyword': keywords,
-				'number': /^[0-9]+$/,
+				'number': /^\d+$/,
 				'punctuation': /[,|:]/,
 			}
 		},
 		'keyword': keywords,
 		'number': {
 			// special highlighting for indexes of arrays in tags
-			pattern: /[0-9]+\s*[.{=]/,
+			pattern: /\b\d+\s*[.{=]/,
 			inside: {
 				'operator': /[.{=]/,
 			}
 		},
 		'tag': {
-			pattern: /\.?[\w-\\]+\.?/,
+			pattern: /\.?[-\w\\]+\.?/,
 			inside: {
 				'punctuation': /\./,
 			}

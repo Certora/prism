@@ -119,7 +119,9 @@
 
 // calc()
 (function () {
-	if (!window.PrefixFree) return;
+	if (!window.PrefixFree) {
+		return;
+	}
 
 	if (PrefixFree.functions.indexOf('calc') == -1) {
 		var style = document.createElement('_').style;
@@ -172,7 +174,7 @@ var setTheme;
 	setTheme = function (id) {
 		var link = $$('link[href^="themes/prism"]')[0];
 
-		link.href = themes.meta.path.replace(/\{id}/g, id);
+		link.href = themes.meta.path.replace(/\{id\}/g, id);
 		localStorage.setItem('theme', id);
 	};
 
@@ -241,28 +243,5 @@ var setTheme;
 	}
 
 	$$('.plugin-list').forEach(listPlugins);
-
-	// small polyfill for Element#matches
-	if (!Element.prototype.matches) {
-		Element.prototype.matches = Element.prototype.msMatchesSelector || Element.prototype.webkitMatchesSelector;
-	}
-
-	Prism && Prism.hooks.add('complete', function (env) {
-		var element = env.element;
-
-		requestAnimationFrame(function () {
-			if (!element.matches('div.code-toolbar > pre > code')) {
-				return;
-			}
-
-			var pre = element.parentElement;
-			var wrapper = pre.parentElement;
-
-			// transfer margin of pre to wrapper
-			wrapper.style.margin = window.getComputedStyle(pre).margin;
-			pre.style.margin = '0';
-
-		});
-	});
 
 }());

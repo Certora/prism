@@ -145,7 +145,7 @@
 				checked = id === storedTheme;
 			}
 
-			var filepath = all.meta.path.replace(/\{id}/g, id);
+			var filepath = all.meta.path.replace(/\{id\}/g, id);
 
 			var info = all[id] = {
 				title: all[id].title || all[id],
@@ -181,19 +181,23 @@
 
 			if ((!all[id].noCSS && !/\.js$/.test(filepath)) || /\.css$/.test(filepath)) {
 				var cssFile = filepath.replace(/(\.css)?$/, '.css');
+				var minCSSFile = cssFile.replace(/(?:\.css)$/, '.min.css');
 
-				info.files.minified.paths.push(cssFile);
+				info.files.minified.paths.push(minCSSFile);
 				info.files.dev.paths.push(cssFile);
 			}
 
 			function getLanguageTitle(lang) {
-				if (!lang.aliasTitles)
+				if (!lang.aliasTitles) {
 					return lang.title;
+				}
 
 				var titles = [lang.title];
-				for (var alias in lang.aliasTitles)
-					if (lang.aliasTitles.hasOwnProperty(alias))
+				for (var alias in lang.aliasTitles) {
+					if (lang.aliasTitles.hasOwnProperty(alias)) {
 						titles.push(lang.aliasTitles[alias]);
+					}
+				}
 				return titles.join(' + ');
 			}
 
@@ -242,7 +246,7 @@
 					all.meta.link ? {
 						tag: 'a',
 						properties: {
-							href: all.meta.link.replace(/\{id}/g, id),
+							href: all.meta.link.replace(/\{id\}/g, id),
 							className: 'name'
 						},
 						contents: info.title

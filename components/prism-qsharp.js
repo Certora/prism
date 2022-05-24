@@ -84,14 +84,14 @@
 			},
 			{
 				// namespace Quantum.App1;
-				pattern: re(/(\bnamespace\s+)<<0>>(?=\s*{)/.source, [qualifiedName]),
+				pattern: re(/(\bnamespace\s+)<<0>>(?=\s*\{)/.source, [qualifiedName]),
 				lookbehind: true,
 				inside: typeInside
 			},
 		],
 		'keyword': keywords,
 		'number': /(?:\b0(?:x[\da-f]+|b[01]+|o[0-7]+)|(?:\B\.\d+|\b\d+(?:\.\d*)?)(?:e[-+]?\d+)?)l?\b/i,
-		'operator': /\band=|\bor=|\band\b|\bor\b|\bnot\b|<[-=]|[-=]>|>>>=?|<<<=?|\^\^\^=?|\|\|\|=?|&&&=?|w\/=?|~~~|[*\/+\-^=!%]=?/,
+		'operator': /\band=|\bor=|\band\b|\bnot\b|\bor\b|<[-=]|[-=]>|>>>=?|<<<=?|\^\^\^=?|\|\|\|=?|&&&=?|w\/=?|~~~|[*\/+\-^=!%]=?/,
 		'punctuation': /::|[{}[\];(),.:]/
 	});
 
